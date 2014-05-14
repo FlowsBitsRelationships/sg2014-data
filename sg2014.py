@@ -5,6 +5,7 @@ from py2neo.packages.urimagic import URI
 from py2neo import cypher
 from flask import Flask
 from flask import g
+from flask import request
 
 app = Flask(__name__)
 
@@ -14,10 +15,13 @@ def hello_world():
 	return 'Hello, World!'
 
 
-@app.route('/<unsafe_query>')
+@app.route('/query', methods=['PUT'])
 def cypher_query():
+	return 'foo'
+	q = request.form['query']
+	print q
 	tx = session.create_transaction()
-	tx.append( unsafe_query )
+	tx.append( q )
 	results = tx.commit()
 	return { 'results': results }
 
