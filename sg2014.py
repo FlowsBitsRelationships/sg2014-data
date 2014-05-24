@@ -13,10 +13,6 @@ app = Flask(__name__)
 GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL", "http://localhost:7474/db/data/")
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
-#print DB
-#print type( DB )
-#print DB.neo4j_version()
-#DB_SESSION = cypher.Session( GRAPHENEDB_URL )
 
 @app.route('/')
 def hello_world():
