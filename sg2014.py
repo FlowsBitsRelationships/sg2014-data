@@ -20,7 +20,7 @@ DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
 @app.route('/')
 def hello_world():
-	return 'Hello, World!'
+	return 'Hello, World! Hello, Neo4j!'
 
 
 @app.route('/node/<node_type>', methods=['POST', 'GET'])
