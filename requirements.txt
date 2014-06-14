@@ -6,4 +6,6 @@ Werkzeug==0.9.4
 gunicorn==18.0
 itsdangerous==0.24
 py2neo==1.6.4
+redis==2.10.1
+rq==0.4.6
 wsgiref==0.1.2
