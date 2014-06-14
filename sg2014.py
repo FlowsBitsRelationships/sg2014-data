@@ -60,7 +60,7 @@ def get_version():
 
 
 if __name__=="__main__":
-	app.debug = True
+	#app.debug = True
 	
 	#g.session = cypher.Session( graphenedb_url )
 	#service_root = neo4j.ServiceRoot(URI(graphenedb_url).resolve("/"))

@@ -1,2 +1,5 @@
 *.pyc
 data.json
+/data
+run_twitter.sh
+.DS_Store
