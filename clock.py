@@ -18,11 +18,17 @@ JOBS = {}
 def timed_job():
 	""" Runs the jobs defined by code in the jobs directory. """
 	for mod_lo, name, ispkg in pkgutil.iter_modules(["./jobs"]):
+		if JOBS[ name ] is None: 
+			continue
 		if name not in JOBS:
 			fullname = "jobs." + name
 			x = __import__( fullname )
 			this_job = getattr( x, name )
-			JOBS[ name ] = getattr( this_job, 'run' )
+			if 'run' in dir( this_job ):
+				JOBS[ name ] = getattr( this_job, 'run' )
+			else:
+				JOBS[ name ] = None
+				continue
 		q.enqueue( JOBS[name] )
 
 
