@@ -1,4 +1,5 @@
 notes.txt
+startup.sh
 *.pyc
 data.json
 /data
