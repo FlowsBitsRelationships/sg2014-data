@@ -23,9 +23,9 @@ def get_tweets( latlong=None ):
 def get_lots_of_tweets( latlong ):
 	""" Does pretty much what its long name suggests. """
 	all_tweets = {}
-	total_time = 270
+	total_time = 30
 	remaining_seconds = total_time
-	interval = 30
+	interval = 30 
 	while remaining_seconds > 0:
 		added = 0
 		new_tweets = get_tweets( latlong )
