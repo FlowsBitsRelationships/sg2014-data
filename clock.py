@@ -27,17 +27,17 @@ def setup_jobs():
 			if 'run' in dir( this_job ):
 				JOBS[ name ] = getattr( this_job, 'run' )
 				print "Added %s to the JOBS cache" % name
-			#else:
-			#	JOBS[ name ] = None
-			#	continue
+				#else:
+				#	JOBS[ name ] = None
+				#	continue
 
 
 @sched.interval_schedule(minutes=5)
 def timed_job():
 	""" Runs the jobs defined by code in the jobs directory. """
 	for name, job in JOBS.iteritems():
-        print "Adding %s to the jobs queue" % name
-        q.enqueue( job )
+		print "Adding %s to the jobs queue" % name
+		q.enqueue( job )
 
 
 setup_jobs()
