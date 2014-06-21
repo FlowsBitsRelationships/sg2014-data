@@ -9,8 +9,8 @@ from twython import Twython
 sys.path.insert(0, '../')
 from s3 import upload_to_s3
 
-APP_KEY = os.environ['TWITTER_APP_KEY']
-APP_SECRET = os.environ['TWITTER_APP_SECRET']
+APP_KEY = os.environ['TWITTER_API_KEY']
+APP_SECRET = os.environ['TWITTER_API_SECRET']
 
 
 def get_tweets( latlong=None ):
