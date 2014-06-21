@@ -35,9 +35,9 @@ def setup_jobs():
 @sched.interval_schedule(minutes=5)
 def timed_job():
 	""" Runs the jobs defined by code in the jobs directory. """
-		for name, job in JOBS.iteritems():
-	        print "Adding %s to the jobs queue" % name
-	        q.enqueue( job )
+	for name, job in JOBS.iteritems():
+        print "Adding %s to the jobs queue" % name
+        q.enqueue( job )
 
 
 setup_jobs()
