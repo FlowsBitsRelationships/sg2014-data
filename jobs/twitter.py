@@ -42,7 +42,6 @@ def get_lots_of_tweets( latlong ):
 				properties['raw_source'] = tweet
 				properties['data_point'] = 'none'
 				all_tweets[ tid ] = properties
-				
 				added += 1
 		print "At %d seconds, added %d new tweets, for a total of %d" % ( total_time - remaining_seconds, added, len( all_tweets ) )
 		time.sleep(interval)

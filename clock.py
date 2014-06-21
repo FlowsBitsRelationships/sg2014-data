@@ -2,9 +2,12 @@
 import os
 import sys
 import pkgutil
+import logging
 from rq import Queue
 from worker import conn
 from apscheduler.scheduler import Scheduler
+
+logging.basicConfig()
 
 sched = Scheduler()
 
