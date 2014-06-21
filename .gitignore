@@ -1,5 +1,6 @@
 notes.txt
 startup.sh
+.envvars
 *.pyc
 data.json
 /data

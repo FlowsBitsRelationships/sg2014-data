@@ -17,7 +17,7 @@ q = Queue(connection=conn)
 # intelligently - but here's a little hand-rolled cache of just the methods I want to call.
 JOBS = {}
 
-@sched.interval_schedule(minutes=5)
+@sched.interval_schedule(minutes=1)
 def timed_job():
 	""" Runs the jobs defined by code in the jobs directory. """
 	for mod_lo, name, ispkg in pkgutil.iter_modules(["./jobs"]):

@@ -16,7 +16,7 @@ redirect = os.environ['FOURSQUARE_REDIRECT']
 # Set some query parameters
 ll = '22.2670,114.1880' 
 #ll = '40.7127, -74.0059' #NY
-total_time = 270
+total_time = 60#270
 
 def get_checkins(ll):
     # Construct the client object
