@@ -27,11 +27,13 @@ def timed_job():
 			this_job = getattr( x, name )
 			if 'run' in dir( this_job ):
 				JOBS[ name ] = getattr( this_job, 'run' )
+				print "Added %s to the JOBS cache" % name
 			else:
 				JOBS[ name ] = None
 				continue
 		if JOBS[ name ] is None:
 			continue	
+        print "Adding %s to the jobs queue" % name
         q.enqueue( JOBS[name] )
 
 
