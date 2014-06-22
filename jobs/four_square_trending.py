@@ -64,7 +64,7 @@ def get_many_checkins(ll, total_time):
     
 def run():
     checkins = get_many_checkins(ll, total_time)
-    target_path = 'foursquare/%foursquare_trending.json' %(datetime.now())
+    target_path = 'foursquare/%sfoursquare_trending.json' %(str(datetime.now()))
 
     upload = upload_to_s3( target_path, json.dumps(checkins))
     #with open( '/Volumes/XP/Documents and Settings/Carlos Emilio/My Documents/sg2014/foursquare/%sfour_trending.json' %(str(datetime.now())), 'w' ) as f:
