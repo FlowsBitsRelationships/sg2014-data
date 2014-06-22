@@ -36,7 +36,7 @@ def get_many_checkins(ll, total_time):
         #print t
         new_checkins = t['venues']
         for checkin in new_checkins:
-            print checkin
+            #print checkin
             check_id = checkin['id']
             if check_id not in all_checkins:
                 properties = {}
