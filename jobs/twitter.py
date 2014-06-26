@@ -48,9 +48,12 @@ def get_lots_of_tweets( latlong ):
 		remaining_seconds -= interval
 	return all_tweets
 
+
 def run():
 	t = get_lots_of_tweets( [22.280893, 114.173035] )
 	target_path = 'twitter/%stweets.json' %(str(datetime.now()))
 	#with open( './data/%stweets.json' %(datetime.now()), 'w' ) as f:
 	#	f.write( json.dumps(t))
 	upload = upload_to_s3( target_path, json.dumps(t))
+
+
