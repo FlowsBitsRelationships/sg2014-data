@@ -12,7 +12,8 @@ import esm
 #import esmre 	# using esmre and not just esm to take advantage of regexes
 
 
-GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL", "http://localhost:7474/db/data/")
+#GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL", "http://localhost:7474/db/data/")
+GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL']
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
 
@@ -190,9 +191,8 @@ def add_places_relationships():
 
 
 if __name__=='__main__':
-	#add_places()
 	#DB.clear()
-	#push_data_to_db()
+	push_data_to_db()
 	add_places_relationships()
 
 
