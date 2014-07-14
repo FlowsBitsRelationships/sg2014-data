@@ -8,7 +8,7 @@ import json
 import time
 from py2neo import neo4j
 
-import esm
+#import esm
 #import esmre 	# using esmre and not just esm to take advantage of regexes
 
 
@@ -56,14 +56,57 @@ def push_tweet_to_db( tid, tweet, points_idx ):
 	results = q.execute( tp=tweet_props, up=user_props, origin='twitter', tweet=tid )
 	tweet_node = results.data[0].values[0]
 	points_idx.add('k', 'v', tweet_node )
+	
+	
+def push_to_db( tid, all_data, source, points_idx ):# tweet instead of all_data
+
+	query_string = """ 
+			MERGE (tweet:Social:Tweets { lat: {tp}.lat, lon: {tp}.lon, content: {tp}.content, user: {up}.username, origin:{origin}, raw_source:{tweet} })
+			MERGE (user:Users:TwitterUsers {  
+				username: {up}.username,
+				followers_count: {up}.followers_count,
+				id_str: {up}.id_str,
+				location: {up}.location,
+				lang: {up}.lang,
+				name: {up}.name,
+				desscription: {up}.description
+			})
+			MERGE (user)-[r:TWEETED{ time:{tp}.time }]->(tweet)
+			RETURN tweet
+		"""
+	
+	data_props = { k: v for k,v in all_data.iteritems() if k != 'raw_source' }
+	print type(all_data)
+	if source == 'Twitter':
+		# twitter.py accidentally is swapping lattitude and longitude, swap it back here
+		data_props['lat'], data_props['lon'] = data_props['lon'], data_props['lat']   
+		data_props['in_reply_to_user_id_str'] = data_props['raw_source']['in_reply_to_user_id_str']
+		data_props['in_reply_to_status_id_str'] = data_props['raw_source']['in_reply_to_status_id_str']
+		data_props['time'] = data_props['raw_source']['created_at']
+
+		raw_user = data_props['raw_source']['user']
+		user_props = {
+			'username': raw_user['screen_name'],
+			'followers_count': raw_user['followers_count'],
+			'id_str': raw_user['id_str'],
+			'location': raw_user['location'],
+			'lang': raw_user['lang'],
+			'name': raw_user['name'],
+			'description': raw_user['description']
+		}
+
+	#q = neo4j.CypherQuery( DB, query_string )
+	#results = q.execute( tp=tweet_props, up=user_props, origin='twitter', tweet=tid )# twwet_props is data_props
+	#tweet_node = results.data[0].values[0]
+	#points_idx.add('k', 'v', tweet_node )
 
 
-def push_all_tweets_to_db( all_tweets, point_idx ):
-	tweets_count = 0
-	for tid, tweet in all_tweets.iteritems():
-		push_tweet_to_db( tid, tweet, point_idx )
-		tweets_count += 1
-	print "Added %d tweets to the db." % tweets_count 
+def push_all_to_db( stuff, source, point_idx ):
+	count = 0
+	for tid, data in stuff.iteritems():
+		push_to_db( tid, data, source, point_idx )
+		count += 1
+	print "Added %d data to the db." % count
 
 
 def push_data_to_db():
@@ -73,22 +116,56 @@ def push_data_to_db():
 			'lat': 'lat',
 			'lon': 'lon'
 		})
-	all_tweets = crawl_s3()
-	push_all_tweets_to_db( all_tweets, points_3 )
-	add_places()
+	all_data = crawl_s3()
+	data, source = all_data[0], all_data[1]
+	push_all_to_db( data, source, points_3 )
+	#add_places()
 
 
 def crawl_s3():
-	all_tweets = {}
+	# with fourquare it returns a dictionary of dictionaries
+	# with twitter, it returns a dictionary of dictionaries
+	# with traffic, it returns a list of dictionaries
+	# with hk_gov, it returns a list of dictionaries
+	
+	data_dict = {}
 	conn = S3Connection()
 	bucket = conn.get_bucket('sg14fbr')
-	for key in bucket.list():
+	test = [bucket.get_key('data/traffic/2014-07-13 06:58:42.942341traffic.json')]
+	for key in test:#list(bucket.list(prefix='data/twitter')):
+		raw_data = key.get_contents_as_string()
+		if raw_data == '': continue
+		data = json.loads( raw_data )
+		
 		if 'twitter' in key.key:
-			raw_data = key.get_contents_as_string()
-			if raw_data == '': continue
-			data = json.loads( raw_data )
-			all_tweets = dict( all_tweets, **data )
-	return all_tweets
+			source = 'twitter'
+			
+		elif 'foursquare_explore' in key.key:
+			source = 'foursquare_explore'
+			
+		elif 'foursquare' in key.key:
+			source = 'foursquare'
+			
+		elif 'flickr' in key.key:
+			source = 'flickr'
+			
+		elif 'hk_gov' in key.key:
+			new_data = {}
+			for i in data:
+				new_data[i['content']] = i
+			data = new_data
+			
+			source = 'hk_gov'
+			
+		elif 'traffic' in key.key:
+			new_data = {}
+			for i in data:
+				new_data[i['date']] = i
+			data = new_data
+			source = 'traffic'
+			
+		data_dict = dict( data_dict, **data )
+	return data_dict, source
 
 
 def add_place_to_db( place, points_idx ):
@@ -193,7 +270,7 @@ def add_places_relationships():
 if __name__=='__main__':
 	#DB.clear()
 	push_data_to_db()
-	add_places_relationships()
+	#add_places_relationships()
 
 
 ####
