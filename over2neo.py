@@ -58,7 +58,7 @@ def push_tweet_to_db( tid, tweet, points_idx ):
 	points_idx.add('k', 'v', tweet_node )
 	
 	
-def push_to_db( tid, all_data, source, points_idx ):# tweet instead of all_data
+def push_to_db( tid, all_data, points_idx ):# tweet instead of all_data
 
 	query_string = """ 
 			MERGE (tweet:Social:Tweets { lat: {tp}.lat, lon: {tp}.lon, content: {tp}.content, user: {up}.username, origin:{origin}, raw_source:{tweet} })
@@ -76,24 +76,31 @@ def push_to_db( tid, all_data, source, points_idx ):# tweet instead of all_data
 		"""
 	
 	data_props = { k: v for k,v in all_data.iteritems() if k != 'raw_source' }
-	print type(all_data)
+	
+	if 'source' in data_props:  
+		source = data_props['source']
+	elif 'data_source' in data_props:
+		source = data_props['data_source']
+	elif 'tweet_id' in data_props:
+		source = 'Twitter'
+	print data_props, source
 	if source == 'Twitter':
 		# twitter.py accidentally is swapping lattitude and longitude, swap it back here
-		data_props['lat'], data_props['lon'] = data_props['lon'], data_props['lat']   
-		data_props['in_reply_to_user_id_str'] = data_props['raw_source']['in_reply_to_user_id_str']
-		data_props['in_reply_to_status_id_str'] = data_props['raw_source']['in_reply_to_status_id_str']
-		data_props['time'] = data_props['raw_source']['created_at']
-
-		raw_user = data_props['raw_source']['user']
-		user_props = {
-			'username': raw_user['screen_name'],
-			'followers_count': raw_user['followers_count'],
-			'id_str': raw_user['id_str'],
-			'location': raw_user['location'],
-			'lang': raw_user['lang'],
-			'name': raw_user['name'],
-			'description': raw_user['description']
-		}
+		data_props['lat'], data_props['lon'] = data_props['lon'], data_props['lat']   		
+		if 'raw_source' in data_props:
+			data_props['in_reply_to_user_id_str'] = data_props['raw_source']['in_reply_to_user_id_str']
+			data_props['in_reply_to_status_id_str'] = data_props['raw_source']['in_reply_to_status_id_str']
+			data_props['time'] = data_props['raw_source']['created_at']
+			raw_user = data_props['raw_source']['user']
+			user_props = {
+				'username': raw_user['screen_name'],
+				'followers_count': raw_user['followers_count'],
+				'id_str': raw_user['id_str'],
+				'location': raw_user['location'],
+				'lang': raw_user['lang'],
+				'name': raw_user['name'],
+				'description': raw_user['description']
+			}
 
 	#q = neo4j.CypherQuery( DB, query_string )
 	#results = q.execute( tp=tweet_props, up=user_props, origin='twitter', tweet=tid )# twwet_props is data_props
@@ -101,10 +108,10 @@ def push_to_db( tid, all_data, source, points_idx ):# tweet instead of all_data
 	#points_idx.add('k', 'v', tweet_node )
 
 
-def push_all_to_db( stuff, source, point_idx ):
+def push_all_to_db( stuff, point_idx ):
 	count = 0
 	for tid, data in stuff.iteritems():
-		push_to_db( tid, data, source, point_idx )
+		push_to_db( tid, data, point_idx )
 		count += 1
 	print "Added %d data to the db." % count
 
@@ -117,8 +124,7 @@ def push_data_to_db():
 			'lon': 'lon'
 		})
 	all_data = crawl_s3()
-	data, source = all_data[0], all_data[1]
-	push_all_to_db( data, source, points_3 )
+	push_all_to_db( all_data, points_3 )
 	#add_places()
 
 
@@ -131,41 +137,28 @@ def crawl_s3():
 	data_dict = {}
 	conn = S3Connection()
 	bucket = conn.get_bucket('sg14fbr')
-	test = [bucket.get_key('data/traffic/2014-07-13 06:58:42.942341traffic.json')]
+	test = [bucket.get_key('data/traffic/2014-07-13 06:58:42.942341traffic.json'),
+		bucket.get_key('data/twitter/2014-07-10 18:22:12.990921tweets.json'),
+		bucket.get_key('data/foursquare/2014-07-14 06:29:21.646841foursquare_trending.json')]
 	for key in test:#list(bucket.list(prefix='data/twitter')):
 		raw_data = key.get_contents_as_string()
 		if raw_data == '': continue
 		data = json.loads( raw_data )
-		
-		if 'twitter' in key.key:
-			source = 'twitter'
-			
-		elif 'foursquare_explore' in key.key:
-			source = 'foursquare_explore'
-			
-		elif 'foursquare' in key.key:
-			source = 'foursquare'
-			
-		elif 'flickr' in key.key:
-			source = 'flickr'
-			
-		elif 'hk_gov' in key.key:
+
+		if 'hk_gov' in key.key:
 			new_data = {}
 			for i in data:
 				new_data[i['content']] = i
 			data = new_data
-			
-			source = 'hk_gov'
-			
+						
 		elif 'traffic' in key.key:
 			new_data = {}
 			for i in data:
 				new_data[i['date']] = i
 			data = new_data
-			source = 'traffic'
 			
 		data_dict = dict( data_dict, **data )
-	return data_dict, source
+	return data_dict
 
 
 def add_place_to_db( place, points_idx ):
