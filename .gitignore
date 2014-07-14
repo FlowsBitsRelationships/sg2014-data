@@ -2,7 +2,8 @@ hk_places.json
 tweets.json
 notes.txt
 startup.sh
-.envvars
+envvars
+variables.sh
 *.pyc
 data.json
 /data

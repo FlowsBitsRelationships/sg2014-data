@@ -12,8 +12,8 @@ from py2neo import neo4j
 #import esmre 	# using esmre and not just esm to take advantage of regexes
 
 
-#GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL", "http://localhost:7474/db/data/")
-GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL']
+#GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL_3", "http://localhost:7474/db/data/")
+GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL_3']
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
 
@@ -58,6 +58,42 @@ def push_tweet_to_db( tid, tweet, points_idx ):
 	points_idx.add('k', 'v', tweet_node )
 	
 	
+def push_traffic(data):
+	# twitter.py accidentally is swapping lattitude and longitude, swap it back here
+	data_props['lat'], data_props['lon'] = data_props['lon'], data_props['lat']
+	print data_props
+	query_string = """
+		MERGE (node:Traffic { lat: {tr}.lat, lon: {tr}.lon, speed: {tr}.hk_gov_speed, road_type: {tr}.road_type, 
+							  saturation: {tr}.saturation, time: {tr}.date })
+		
+	"""
+
+	query_string = """ 
+			MERGE (tweet:Social:Tweets { lat: {tp}.lat, lon: {tp}.lon, content: {tp}.content, user: {up}.username, origin:{origin}, raw_source:{tweet} })
+			MERGE (user:Users:TwitterUsers {  
+				username: {up}.username,
+				followers_count: {up}.followers_count,
+				id_str: {up}.id_str,
+				location: {up}.location,
+				lang: {up}.lang,
+				name: {up}.name,
+				desscription: {up}.description
+			})
+			MERGE (user)-[r:TWEETED{ time:{tp}.time }]->(tweet)
+			RETURN tweet
+		"""
+	q = neo4j.CypherQuery( DB, query_string )
+	if not user_props:
+		user_props = {}
+	results = q.execute( tp=data_props, up=user_props, origin='traffic', tweet=tid )
+		
+	try:
+		print results.data[0].values[0]
+	except: pass
+	new_node = results.data[0].values[0]
+	points_idx.add('k', 'v', new_node )
+	
+	
 def push_to_db( tid, all_data, points_idx ):# tweet instead of all_data
 	
 	data_props = { k: v for k,v in all_data.iteritems() if k != 'raw_source' }
@@ -68,52 +104,10 @@ def push_to_db( tid, all_data, points_idx ):# tweet instead of all_data
 		source = data_props['data_source']
 	elif 'tweet_id' in data_props:
 		source = 'Twitter'
-	#print data_props, source
+	print data_props, source
 	if source == 'Twitter':
-		# twitter.py accidentally is swapping lattitude and longitude, swap it back here
-		data_props['lat'], data_props['lon'] = data_props['lon'], data_props['lat']
-		print data_props
-		if 'raw_source' in data_props:
-			data_props['in_reply_to_user_id_str'] = data_props['raw_source']['in_reply_to_user_id_str']
-			data_props['in_reply_to_status_id_str'] = data_props['raw_source']['in_reply_to_status_id_str']
-			data_props['time'] = data_props['raw_source']['created_at']
-			raw_user = data_props['raw_source']['user']
-			user_props = {
-				'username': raw_user['screen_name'],
-				'followers_count': raw_user['followers_count'],
-				'id_str': raw_user['id_str'],
-				'location': raw_user['location'],
-				'lang': raw_user['lang'],
-				'name': raw_user['name'],
-				'description': raw_user['description']
-			}
-		else:
-			user_props = {}
+		pass
 
-		query_string = """ 
-				MERGE (tweet:Social:Tweets { lat: {tp}.lat, lon: {tp}.lon, content: {tp}.content, user: {up}.username, origin:{origin}, raw_source:{tweet} })
-				MERGE (user:Users:TwitterUsers {  
-					username: {up}.username,
-					followers_count: {up}.followers_count,
-					id_str: {up}.id_str,
-					location: {up}.location,
-					lang: {up}.lang,
-					name: {up}.name,
-					desscription: {up}.description
-				})
-				MERGE (user)-[r:TWEETED{ time:{tp}.time }]->(tweet)
-				RETURN tweet
-			"""
-		q = neo4j.CypherQuery( DB, query_string )
-		if not user_props:
-			user_props = {}
-		results = q.execute( tp=data_props, up=user_props, origin='twitter', tweet=tid )
-			
-		try:
-			print results.data[0].values[0]
-		except: pass
-		#new_node = results.data[0].values[0]
-		#points_idx.add('k', 'v', new_node )
 
 
 def push_all_to_db( stuff, point_idx ):
@@ -194,13 +188,17 @@ def add_place_to_db( place, points_idx ):
 def add_places():
 	with open('hk_places.json') as f:
 		places = json.loads( f.read() )
-	points_idx = DB.get_index( neo4j.Node, 'points_hk' )
+	points_idx = DB.get_or_create_index( neo4j.Node, 'points_hk', {
+			'provider':'spatial',
+			'geometry_type': 'point',
+			'lat': 'lat',
+			'lon': 'lon'
+		})
 	if points_idx is None:
-		print "Could not find the points_hk index!"
+		print "Could not find or create the points_hk index!"
 		return
 	for i, place in enumerate( places ):
 		add_place_to_db( place, points_idx )
-	
 
 
 def get_name_index( places=None ):
@@ -270,88 +268,5 @@ def add_places_relationships():
 
 if __name__=='__main__':
 	#DB.clear()
-	push_data_to_db()
-	#add_places_relationships()
-
-
-####
-####
-#### MISC NOT CURRENTLY BEING USED ####
-####
-####
-
-# TODO Write a blog post comparing Aho Corasick vs naive implementation, pointing out where the trade-off in setup time vs. operation time occurs, etc.
-
-def test_ac( index ):
-	text =[ """Here is some text that mentions this Wan Tuk place. I want to go there.  And I also want to go to Tai Wan. Hmm. Pok Tau Ha. Okay what if the
-		text is really long?
-	""", """ And there are lots of different text strings? Wan Tuk about then? """, """ Okay well, I think we have some idea.  But the thing is. I imagine
-	that this function is getting dominated by the setup of the index.  But if we're looking at 3000 tweets that will get overwhelmed by the searching itself.
-	 """ ]
-	for x in xrange( 20000 ): 
-		for t in text:
-			matches = index.query( t )
-	
-
-def test_naive():
-	name_set = set()
-	with open('hk_places.json') as f:
-		places = json.loads( f.read() )
-	for i, place in enumerate( places ):
-		name = ''.join([ c for c in place['name'] if ord(c) < 128 ]).strip()
-		if name == '':
-			continue
-		name_set.add( name )
-	text = [ """Here is some text that mentions this Wan Tuk place. I want to go there.  And I also want to go to Tai Wan. Hmm. Pok Tau Ha. Okay what if the
-		text is really long?
-	""", """ And there are lots of different text strings? Wan Tuk about then? """, """ Okay well, I think we have some idea.  But the thing is. I imagine
-	that this function is getting dominated by the setup of the index.  But if we're looking at 3000 tweets that will get overwhelmed by the searching itself.
-	 """ ]
-	matches = 0
-	for x in xrange( 20000 ):
-		for n in name_set:
-			for t in text:
-				if n in t: matches += 1
-
-
-
-#if __name__=='__main__':
 	#push_data_to_db()
-	#add_places()
-	# ac_start = time.clock()
-	# idx = get_name_index()
-	# test_ac( idx )
-	# ac_end = time.clock() - ac_start
-	# print "AC/esmre --> %f" % ac_end
-	# naive_start = time.clock()
-	# test_naive()
-	# naive_end = time.clock() - naive_start
-	# print "Naive --> %f" % naive_end
-
-
-# from neo4jrestclient.client import GraphDatabase
-
-# def exp():
-# 	gdb = GraphDatabase('http://localhost:7474/db/data')
-# 	points = gdb.nodes.indexes.create('points_2', geometry_type='point', provider='spatial', lat='lat', lon='lon' )
-# 	tweets = gdb.labels.create('tweets_nyc')
-# 	with open( 'tweets.json' ) as f:
-# 		all_tweets = json.loads( f.read() )
-# 	for tid, t in all_tweets.iteritems():
-# 		db_t = gdb.nodes.create(content=t['content'], lat=t['lat'], lon=t['lon'], user=t['user'], origin='twitter', raw_source='')
-# 		tweets.add( db_t )
-# 		points.add( 'k', 'v', db_t )
-
-# # NOTE: START n=node:points_2('withinDistance:[-74.004767,40.737288,1000.0]') RETURN n  -- lon,lat not lat,lon!
-
-# def foo():
-# 	gdb = GraphDatabase('http://localhost:7474/db/data')
-# 	r = gdb.query("START n=node:points_2('withinDistance:[-74.004767,40.737288,1000.0]') RETURN n")
-# 	for x in r:
-# 		print x[0]['data']['content']
-# 		print " --- "
-
-
-
-
-
+	#add_places_relationships()
