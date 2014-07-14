@@ -59,21 +59,6 @@ def push_tweet_to_db( tid, tweet, points_idx ):
 	
 	
 def push_to_db( tid, all_data, points_idx ):# tweet instead of all_data
-
-	query_string = """ 
-			MERGE (tweet:Social:Tweets { lat: {tp}.lat, lon: {tp}.lon, content: {tp}.content, user: {up}.username, origin:{origin}, raw_source:{tweet} })
-			MERGE (user:Users:TwitterUsers {  
-				username: {up}.username,
-				followers_count: {up}.followers_count,
-				id_str: {up}.id_str,
-				location: {up}.location,
-				lang: {up}.lang,
-				name: {up}.name,
-				desscription: {up}.description
-			})
-			MERGE (user)-[r:TWEETED{ time:{tp}.time }]->(tweet)
-			RETURN tweet
-		"""
 	
 	data_props = { k: v for k,v in all_data.iteritems() if k != 'raw_source' }
 	
@@ -83,10 +68,11 @@ def push_to_db( tid, all_data, points_idx ):# tweet instead of all_data
 		source = data_props['data_source']
 	elif 'tweet_id' in data_props:
 		source = 'Twitter'
-	print data_props, source
+	#print data_props, source
 	if source == 'Twitter':
 		# twitter.py accidentally is swapping lattitude and longitude, swap it back here
-		data_props['lat'], data_props['lon'] = data_props['lon'], data_props['lat']   		
+		data_props['lat'], data_props['lon'] = data_props['lon'], data_props['lat']
+		print data_props
 		if 'raw_source' in data_props:
 			data_props['in_reply_to_user_id_str'] = data_props['raw_source']['in_reply_to_user_id_str']
 			data_props['in_reply_to_status_id_str'] = data_props['raw_source']['in_reply_to_status_id_str']
@@ -101,11 +87,33 @@ def push_to_db( tid, all_data, points_idx ):# tweet instead of all_data
 				'name': raw_user['name'],
 				'description': raw_user['description']
 			}
+		else:
+			user_props = {}
 
-	#q = neo4j.CypherQuery( DB, query_string )
-	#results = q.execute( tp=tweet_props, up=user_props, origin='twitter', tweet=tid )# twwet_props is data_props
-	#tweet_node = results.data[0].values[0]
-	#points_idx.add('k', 'v', tweet_node )
+		query_string = """ 
+				MERGE (tweet:Social:Tweets { lat: {tp}.lat, lon: {tp}.lon, content: {tp}.content, user: {up}.username, origin:{origin}, raw_source:{tweet} })
+				MERGE (user:Users:TwitterUsers {  
+					username: {up}.username,
+					followers_count: {up}.followers_count,
+					id_str: {up}.id_str,
+					location: {up}.location,
+					lang: {up}.lang,
+					name: {up}.name,
+					desscription: {up}.description
+				})
+				MERGE (user)-[r:TWEETED{ time:{tp}.time }]->(tweet)
+				RETURN tweet
+			"""
+		q = neo4j.CypherQuery( DB, query_string )
+		if not user_props:
+			user_props = {}
+		results = q.execute( tp=data_props, up=user_props, origin='twitter', tweet=tid )
+			
+		try:
+			print results.data[0].values[0]
+		except: pass
+		#new_node = results.data[0].values[0]
+		#points_idx.add('k', 'v', new_node )
 
 
 def push_all_to_db( stuff, point_idx ):
