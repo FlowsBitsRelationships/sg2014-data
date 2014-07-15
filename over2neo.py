@@ -93,6 +93,7 @@ def push_traffic_json_to_db(json):
 		# creat relationship once we have an end point
 		if i%2 == 1:
 			batch.create(rel(nodeStart, dictionary, nodeEnd))
+			print dictionary
 
 
 		'''if i%2 == 0:
@@ -111,7 +112,9 @@ def push_traffic_json_to_db(json):
 	print nodes
 	print "db = ", DB
 
-def push_hkdata_to_db(path):
+# A function that only needs to be called once
+# It reads data from the HK gov JSON file and places it into the DB
+def push_hkgov_to_db(path):
 	with open(path) as f:
 		dictionaries = json.load(f)
 			
@@ -149,9 +152,42 @@ def push_hkdata_to_db(path):
 			if hkGovType in hkGovTypes:
 				typeNode = hkGovTypes[hkGovType]
 				batch.create(rel(placeNode, "PLACE_TYPE", typeNode))
-				print typeNode
 		results = batch.submit()
 
+# Given a JSON file of four square explore data, push it into the DB
+def push_4sqexplore_to_db():
+	folder = 'sample_jsons/4sq'
+	files = os.listdir(folder)
+	for file in files:
+		with open(folder+'/'+file) as f:
+			dictionaries = json.load(f)
+			if len(dictionaries) == 0: 
+				continue
+			else: 
+				# create the neo spatial points index
+				idx_name = DB.get_or_create_index( neo4j.Node, '4sq_explore', {
+					'provider':'spatial',
+					'geometry_type': 'point',
+					'lat': 'lat',
+					'lon': 'lon'
+				})
+				
+				batch = neo4j.WriteBatch(DB)
+		
+				# Now save the places to the db and give them a relationship to their node type
+				for i, dictionary in dictionaries.iteritems():
+					users = dictionary['user']
+					place = {'lat':float(dictionary['latitude']), 'lon':float(dictionary['longitude']), 'name':dictionary['name']}
+					placeNode = batch.create(node(place))
+					batch.add_to_index( neo4j.Node, 'hk_gov', 'k', 'v', placeNode )
+					batch.add_labels( placeNode, 'Venues' )
+					for user in users:
+						userNode = batch.create(node({'user':user}))
+						batch.add_labels( userNode, 'Users' )
+						batch.create(rel(placeNode, "4SQ_CHECK_IN", userNode))
+					
+				results = batch.submit()
+				#print results
 
 
 def crawl_s3():
@@ -173,10 +209,9 @@ def crawl_s3():
 			my_json = new_json
 						
 		elif 'traffic' in key.key:
-			#push_traffic_json_to_db(my_json)
+			push_traffic_json_to_db(my_json)
 			pass
-	push_hkdata_to_db('sample_jsons/hk_gov.json')
-	#DB.clear()
+
 
 def add_place_to_db( place, points_idx ):
 	place_type = place['tags']['place'] if 'place' in place['tags'] else place['tags']['shop'] if 'shop' in place['tags'] else 'undefined'
@@ -285,5 +320,10 @@ if __name__=='__main__':
 
 	#DB.clear()
 	crawl_s3()
-	#add_places_relationships()
+	
+	#Let's try and load data from individual, one-off JSON files
+	push_hkgov_to_db('sample_jsons/hk_gov.json')
+	push_4sqexplore_to_db()
+	
+
 
