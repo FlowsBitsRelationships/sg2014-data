@@ -8,6 +8,7 @@ import json
 import time
 import math
 from py2neo import neo4j
+from py2neo import *		# only really needed for WriteBatch
 
 #import esm
 #import esmre 	# using esmre and not just esm to take advantage of regexes
@@ -64,77 +65,54 @@ def push_tweet_to_db( tid, tweet, points_idx ):
 	points_idx.add('k', 'v', tweet_node )
 	
 	
+# Given some JSON data that represents traffic 
+def push_traffic_json_to_db(json):
 	
-	
-def push_traffic(data):
-	query_string = """
-		MERGE (node:Traffic { lat: {tr}.lat, lon: {tr}.lon, speed: {tr}.hk_gov_speed, road_type: {tr}.road_type, 
-							  saturation: {tr}.saturation, time: {tr}.date })
-		
-	"""
+	# create the neo spatial points index
+	idx_name = DB.get_or_create_index( neo4j.Node, 'road_hk', {
+		'provider':'spatial',
+		'geometry_type': 'point',
+		'lat': 'lat',
+		'lon': 'lon'
+	})
+	batch = neo4j.WriteBatch(DB)
+	for i, dictionary in enumerate(json):
+		if i%2 == 0:
+			startPt = {'lat':float(dictionary['lat']), 'lon':float(dictionary['lon'])}
+			nodeStart = batch.create(node(startPt))
+			batch.add_labels( nodeStart, 'Traffic' )
+			batch.add_to_index( neo4j.Node, 'road_hk', 'k', 'v', nodeStart ) 
+			#print 'start', start_pt
+		else:
+			endPt = {'lat':float(dictionary['lat']), 'lon':float(dictionary['lon'])}
+			nodeEnd = batch.create(node(endPt))
+			batch.add_labels( nodeEnd, 'Traffic' )
+			batch.add_to_index( neo4j.Node, 'road_hk', 'k', 'v', nodeEnd )  
+			#print 'end', end_pt
 
-	query_string = """ 
-			MERGE (tweet:Social:Tweets { lat: {tp}.lat, lon: {tp}.lon, content: {tp}.content, user: {up}.username, origin:{origin}, raw_source:{tweet} })
-			MERGE (user:Users:TwitterUsers {  
-				username: {up}.username,
-				followers_count: {up}.followers_count,
-				id_str: {up}.id_str,
-				location: {up}.location,
-				lang: {up}.lang,
-				name: {up}.name,
-				desscription: {up}.description
-			})
-			MERGE (user)-[r:TWEETED{ time:{tp}.time }]->(tweet)
-			RETURN tweet
-		"""
-	q = neo4j.CypherQuery( DB, query_string )
-	if not user_props:
-		user_props = {}
-	results = q.execute( tp=data_props, up=user_props, origin='traffic', tweet=tid )
-		
-	try:
-		print results.data[0].values[0]
-	except: pass
-	new_node = results.data[0].values[0]
-	points_idx.add('k', 'v', new_node )
-	
-	
-def push_to_db(json_data, points_idx ):# tweet instead of all_data
-	data_props = { k: v for k,v in json_data.iteritems() if k != 'raw_source' }
-	
-	if 'source' in data_props:  
-		source = data_props['source']
-	elif 'data_source' in data_props:
-		source = data_props['data_source']
-	elif 'tweet_id' in data_props:
-		source = 'Twitter'
-
-	if source == 'hk_gov_speed':
-		print "traffic"
-		#print data_props
+		# creat relationship once we have an end point
+		if i%2 == 1:
+			batch.create(rel(nodeStart, dictionary, nodeEnd))
 
 
+		'''if i%2 == 0:
+			startPt = {'lat':float(dictionary['lat']), 'lon':float(dictionary['lon'])}
+			nodeStart = node(startPt)
+		else:
+			endPt = {'lat':float(dictionary['lat']), 'lon':float(dictionary['lon'])}
+			nodeEnd = node(endPt)
 
-def push_json_to_db( json, point_idx ):
-	count = 0
-	for i, json_data in json.iteritems():
-		push_to_db(json_data, point_idx )
-		count += 1
-	print "Added %d data to the db." % count
+		# creat relationship once we have an end point
+		if i%2 == 1:
+			print nodeStart, nodeEnd
+			r = rel(nodeStart, dictionary, nodeEnd)
+			batch.get_or_create_path(nodeStart, r, nodeEnd)'''
+	nodes = batch.submit()
+	print nodes
+	print "db = ", DB
 
 
 def crawl_s3():
-	# with fourquare it returns a dictionary of dictionaries
-	# with twitter, it returns a dictionary of dictionaries
-	# with traffic, it returns a list of dictionaries
-	# with hk_gov, it returns a list of dictionaries
-	points_3 = DB.get_or_create_index( neo4j.Node, 'points_hk', {
-			'provider':'spatial',
-			'geometry_type': 'point',
-			'lat': 'lat',
-			'lon': 'lon'
-		})
-	
 	data_dict = {}
 	conn = S3Connection()
 	bucket = conn.get_bucket('sg14fbr')
@@ -153,14 +131,7 @@ def crawl_s3():
 			my_json = new_json
 						
 		elif 'traffic' in key.key:
-			new_json = {}
-			for i, json_data in enumerate(my_json):
-				new_json[json_data['date']] = json_data
-				json_data['road_id'] = int(math.floor(i/2))
-			my_json = new_json
-		
-		push_json_to_db(my_json, points_3 )
-			
+			push_traffic_json_to_db(my_json)
 
 
 def add_place_to_db( place, points_idx ):

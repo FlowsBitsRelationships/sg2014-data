@@ -29,15 +29,33 @@ DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 # Loops over every traffic node coordinate that is being monitored, and saves it (location only) to the database
 def push_traffic_nodes_to_db():
 	counter = 0
+	
+	# create the neo spatial points index
+	idx_name = DB.get_or_create_index( neo4j.Node, 'road_hk', {
+		'provider':'spatial',
+		'geometry_type': 'point',
+		'lat': 'lat',
+		'lon': 'lon'
+	})
+	
 	batch = neo4j.WriteBatch(DB)
 	for coord in ALL_TRAFFIC_NODE_COORDS.iteritems():
-		startPt = {'lat': coord[1]['lat1'], 'lon': coord[1]['lon1']}
-		endPt = {'lat': coord[1]['lat2'], 'lon': coord[1]['lon2']}
+		startPt = {'lat': float(coord[1]['lat1']), 'lon': float(coord[1]['lon1'])}
+		endPt = {'lat': float(coord[1]['lat2']), 'lon': float(coord[1]['lon2'])}
 		
-		batch.create(node(startPt))
-		batch.create(node(endPt))
+		nodeStart = batch.create(node(startPt))
+		nodeEnd = batch.create(node(endPt))
+
+		#batch.add_labels( n, 'road_hk' )
+		#batch.add_to_index( neo4j.Node, idx_name, 'k', 'v', n )  
 		
-		print "pushed traffic", counter
+		batch.add_labels( nodeStart, 'RoadStart' )
+		batch.add_labels( nodeEnd, 'RoadEnd' )
+		
+		batch.add_to_index( neo4j.Node, 'road_hk', 'k', 'v', nodeStart )  
+		batch.add_to_index( neo4j.Node, 'road_hk', 'k', 'v', nodeEnd )  
+		
+		print "traffic node", counter
 		counter += 1
 		
 	batch.submit()
