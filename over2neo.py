@@ -14,7 +14,7 @@ from py2neo import neo4j
 
 
 #GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL_3", "http://localhost:7474/db/data/")
-GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL_3']
+GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL']
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
 def traffic_nodes():
@@ -270,6 +270,8 @@ def add_places_relationships():
 
 
 if __name__=='__main__':
+
 	#DB.clear()
 	crawl_s3()
 	#add_places_relationships()
+
