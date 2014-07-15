@@ -263,7 +263,7 @@ def add_places_relationships():
 			"""
 		q = neo4j.CypherQuery( DB, qs )
 		q.execute( tid=tid, pid=pid )
-
+#
 
 
 if __name__=='__main__':
