@@ -267,6 +267,5 @@ def add_places_relationships():
 
 
 if __name__=='__main__':
-	#DB.clear()
-	#push_data_to_db()
-	#add_places_relationships()
+	DB.clear()
+	add_places()
