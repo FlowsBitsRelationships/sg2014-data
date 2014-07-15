@@ -8,12 +8,14 @@ import json
 import time
 from py2neo import neo4j
 
+
+
 #import esm
 #import esmre 	# using esmre and not just esm to take advantage of regexes
 
 
 #GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL_3", "http://localhost:7474/db/data/")
-GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL_3']
+GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL']
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
 
@@ -267,6 +269,5 @@ def add_places_relationships():
 
 
 if __name__=='__main__':
-	#DB.clear()
-	#push_data_to_db()
-	#add_places_relationships()
+	DB.clear()
+	add_places()
