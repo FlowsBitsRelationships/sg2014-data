@@ -94,9 +94,8 @@ def push_traffic(data):
 	points_idx.add('k', 'v', new_node )
 	
 	
-def push_to_db( tid, all_data, points_idx ):# tweet instead of all_data
-	
-	data_props = { k: v for k,v in all_data.iteritems() if k != 'raw_source' }
+def push_to_db(json_data, points_idx ):# tweet instead of all_data
+	data_props = { k: v for k,v in json_data.iteritems() if k != 'raw_source' }
 	
 	if 'source' in data_props:  
 		source = data_props['source']
@@ -110,24 +109,12 @@ def push_to_db( tid, all_data, points_idx ):# tweet instead of all_data
 
 
 
-def push_all_to_db( stuff, point_idx ):
+def push_json_to_db( json, point_idx ):
 	count = 0
-	for tid, data in stuff.iteritems():
-		push_to_db( tid, data, point_idx )
+	for i, json_data in json.iteritems():
+		push_to_db(json_data, point_idx )
 		count += 1
 	print "Added %d data to the db." % count
-
-
-def push_data_to_db():
-	points_3 = DB.get_or_create_index( neo4j.Node, 'points_hk', {
-			'provider':'spatial',
-			'geometry_type': 'point',
-			'lat': 'lat',
-			'lon': 'lon'
-		})
-	all_data = crawl_s3()
-	push_all_to_db( all_data, points_3 )
-	#add_places()
 
 
 def crawl_s3():
@@ -135,32 +122,38 @@ def crawl_s3():
 	# with twitter, it returns a dictionary of dictionaries
 	# with traffic, it returns a list of dictionaries
 	# with hk_gov, it returns a list of dictionaries
+	points_3 = DB.get_or_create_index( neo4j.Node, 'points_hk', {
+			'provider':'spatial',
+			'geometry_type': 'point',
+			'lat': 'lat',
+			'lon': 'lon'
+		})
 	
 	data_dict = {}
 	conn = S3Connection()
 	bucket = conn.get_bucket('sg14fbr')
-	test = [bucket.get_key('data/traffic/2014-07-13 06:58:42.942341traffic.json'),
+	jsons = [bucket.get_key('data/traffic/2014-07-13 06:58:42.942341traffic.json'),
 		bucket.get_key('data/twitter/2014-07-10 18:22:12.990921tweets.json'),
 		bucket.get_key('data/foursquare/2014-07-14 06:29:21.646841foursquare_trending.json')]
-	for key in test:#list(bucket.list(prefix='data/twitter')):
+	for key in jsons:#list(bucket.list(prefix='data/twitter')):
 		raw_data = key.get_contents_as_string()
 		if raw_data == '': continue
-		data = json.loads( raw_data )
+		my_json = json.loads( raw_data )
 
 		if 'hk_gov' in key.key:
-			new_data = {}
-			for i in data:
-				new_data[i['content']] = i
-			data = new_data
+			new_json = {}
+			for i in my_json:
+				new_json[i['content']] = i
+			my_json = new_json
 						
 		elif 'traffic' in key.key:
-			new_data = {}
-			for i in data:
-				new_data[i['date']] = i
-			data = new_data
+			new_json = {}
+			for i in my_json:
+				new_json[i['date']] = i
+			my_json = new_json
+		
+		push_json_to_db(my_json, points_3 )
 			
-		data_dict = dict( data_dict, **data )
-	return data_dict
 
 
 def add_place_to_db( place, points_idx ):
@@ -267,5 +260,8 @@ def add_places_relationships():
 
 
 if __name__=='__main__':
-	DB.clear()
-	add_places()
+
+	#DB.clear()
+	crawl_s3()
+	#add_places_relationships()
+
