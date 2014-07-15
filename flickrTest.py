@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 
@@ -120,11 +122,11 @@ def flickr_to_neo():
 	
 
 def photo_tags_to_neo( photo_id, tag_list ):
-	"""For a given photo, add its tags (and relationships to them) to the database """
+	""" For a given photo, add its tags (and relationships to them) to the database """
 	for tag in tag_list:
 		query_string = """
 			MATCH (p:FlickrPhoto { photo_id:{photo_id}})
-			MERGE (tag:FlickrTag { text:{tag_text}, tag_id:{tag_id}})
+			MERGE (tag:FlickrTag { text:{tag_text}})
 			MERGE (p)-[:Tagged]->(tag)
 		"""
 		q = neo4j.CypherQuery( DB, query_string )
@@ -147,21 +149,24 @@ def photo_tags_to_db_batch():
 	flickr = flickrapi.FlickrAPI( FLICKR_API_KEY )
 	batch = neo4j.WriteBatch( DB )
 	d = get_flickr_data()[0]
-	count = 0
 	for photo in [ data for i,data in d.iteritems() ]:
 		print "Getting tags for %s" % photo['title']
 		t = flickr.tags_getListPhoto( photo_id=photo['photo_id'] )
 		for tag in t[0][0]:
-			t_data = {
-				'tag_id': tag.attrib['id'],
-				'text': tag.text
-			}
-			t = node(t_data)
-			p = node({'photo_id': photo['photo_id'] })
-			r = rel( p, 'Tagged', t )
-			batch.get_or_create_path( p, r, t )
-		count += 1
-		if count > 9: break
+			q = """
+				MATCH (p:FlickrPhoto {photo_id:{photo_id}})
+				MERGE (t:FlickrTag {tag_id:{id}, text:{text}})
+				MERGE (p)-[:Tagged]->(t)
+			"""
+			batch.append_cypher( q, {'photo_id':photo['photo_id'], 'id':tag.attrib['id'], 'text': tag.text })
+			# t_data = {
+			# 	'tag_id': tag.attrib['id'],
+			# 	'text': tag.text
+			# }
+			# t = node(t_data)
+			# p = node({'photo_id': photo['photo_id'] })
+			# r = rel( p, 'Tagged', t )
+			# batch.get_or_create_path( p, r, t )
 	batch.submit()
 
 
@@ -170,12 +175,22 @@ def add_tag_relateds():
 	flickr = flickrapi.FlickrAPI( FLICKR_API_KEY )
 	limit = 100
 	skip = 0
-	query_string = """ MATCH (t:FlickrTag) RETURN t SKIP {skip} LIMIT {limit} """
+	query_string_1 = """ MATCH (t:FlickrTag) RETURN t SKIP {skip} LIMIT {limit} """
+	query_string_2 = """ MATCH (t:FlickrTag {text:{tag_text1}}), (u:FlickrTag {text:{tag_text2}}) MERGE (t)-[:FlickrRelated]->(u) """
 	while True:
-		q = neo4j.CypherQuery( DB, query_string )
+		q = neo4j.CypherQuery( DB, query_string_1 )
 		results = q.execute( skip=skip, limit=limit )
-		results.data[0].values[0]
-		
+		batch = neo4j.WriteBatch( DB )
+		for r in results.data:
+			tag = r.values[0]['text']
+			relateds = flickr.tags_getRelated( tag=tag )
+			for r in relateds[0]:
+				batch.append_cypher( query_string_2, {'tag_text1': tag, 'tag_text2': r.text } )
+		batch.submit()		
+		skip += limit
+		return
+	
+
 if __name__=='__main__':
 	DB.clear()
 	print "Cleared the database..."
@@ -183,5 +198,5 @@ if __name__=='__main__':
 	print "Added users and photos..."
 	photo_tags_to_db()
 	print "Added photo tags."
-	#add_tag_relateds()
+	add_tag_relateds()
 	
