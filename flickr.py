@@ -134,6 +134,7 @@ def photo_tags_to_neo( photo_id, tag_list ):
 
 
 def photo_tags_to_db():
+	""" Adds Flickr photo tags to the db. """
 	flickr = flickrapi.FlickrAPI( FLICKR_API_KEY )
 	d = get_flickr_data()[0]
 	for photo in [ data for i,data in d.iteritems() ]:
@@ -146,6 +147,7 @@ def photo_tags_to_db():
 	
 		
 def photo_tags_to_db_batch():
+	""" Adds photo tags to the db via a batch operation. """
 	flickr = flickrapi.FlickrAPI( FLICKR_API_KEY )
 	batch = neo4j.WriteBatch( DB )
 	d = get_flickr_data()[0]
@@ -159,14 +161,6 @@ def photo_tags_to_db_batch():
 				MERGE (p)-[:Tagged]->(t)
 			"""
 			batch.append_cypher( q, {'photo_id':photo['photo_id'], 'id':tag.attrib['id'], 'text': tag.text })
-			# t_data = {
-			# 	'tag_id': tag.attrib['id'],
-			# 	'text': tag.text
-			# }
-			# t = node(t_data)
-			# p = node({'photo_id': photo['photo_id'] })
-			# r = rel( p, 'Tagged', t )
-			# batch.get_or_create_path( p, r, t )
 	batch.submit()
 
 
