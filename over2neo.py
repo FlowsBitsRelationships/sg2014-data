@@ -16,7 +16,7 @@ from py2neo import neo4j
 GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL']
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
-
+# hello
 
 def push_tweet_to_db( tid, tweet, points_idx ):
 
