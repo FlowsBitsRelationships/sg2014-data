@@ -111,6 +111,48 @@ def push_traffic_json_to_db(json):
 	print nodes
 	print "db = ", DB
 
+def push_hkdata_to_db(path):
+	with open(path) as f:
+		dictionaries = json.load(f)
+			
+		
+		# create the neo spatial points index
+		idx_name = DB.get_or_create_index( neo4j.Node, 'hk_gov', {
+			'provider':'spatial',
+			'geometry_type': 'point',
+			'lat': 'lat',
+			'lon': 'lon'
+		})
+		
+		# save the type nodes to the database
+		batch = neo4j.WriteBatch(DB)
+		hkGovTypes = {}	
+		for dictionary in dictionaries:
+			hkGovType = str(dictionary['type'])
+			if hkGovType not in hkGovTypes:
+				newNode = batch.create(node({'type':hkGovType}))
+				batch.add_labels( newNode, 'HK_gov' )		
+				hkGovTypes[hkGovType] = newNode
+				print "added ", hkGovType
+		batch.submit()
+		
+	
+		# Now save the places to the db and give them a relationship to their node type
+		for dictionary in dictionaries:
+			point = {'lat':float(dictionary['lat']), 'lon':float(dictionary['lon']), 'content':dictionary['content']}
+			placeNode = batch.create(node(point))
+			batch.add_to_index( neo4j.Node, 'hk_gov', 'k', 'v', placeNode ) 
+
+			batch.add_labels( placeNode, 'HK_gov' )
+			
+			hkGovType = str(dictionary['type'])
+			if hkGovType in hkGovTypes:
+				typeNode = hkGovTypes[hkGovType]
+				batch.create(rel(placeNode, "PLACE_TYPE", typeNode))
+				print typeNode
+		results = batch.submit()
+
+
 
 def crawl_s3():
 	data_dict = {}
@@ -131,8 +173,10 @@ def crawl_s3():
 			my_json = new_json
 						
 		elif 'traffic' in key.key:
-			push_traffic_json_to_db(my_json)
-
+			#push_traffic_json_to_db(my_json)
+			pass
+	push_hkdata_to_db('sample_jsons/hk_gov.json')
+	#DB.clear()
 
 def add_place_to_db( place, points_idx ):
 	place_type = place['tags']['place'] if 'place' in place['tags'] else place['tags']['shop'] if 'shop' in place['tags'] else 'undefined'
