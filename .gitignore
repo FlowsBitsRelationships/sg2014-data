@@ -4,6 +4,8 @@ notes.txt
 startup.sh
 envvars
 variables.sh
+db_info
+sample_jsons/*
 *.pyc
 data.json
 /data
