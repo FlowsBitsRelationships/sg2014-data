@@ -120,7 +120,7 @@ def flickr_to_neo():
 	
 
 def photo_tags_to_neo( photo_id, tag_list ):
-	""" For a given photo, add its tags (and relationships to them) to the database """
+	"""For a given photo, add its tags (and relationships to them) to the database """
 	for tag in tag_list:
 		query_string = """
 			MATCH (p:FlickrPhoto { photo_id:{photo_id}})
@@ -176,8 +176,6 @@ def add_tag_relateds():
 		results = q.execute( skip=skip, limit=limit )
 		results.data[0].values[0]
 		
-	
-
 if __name__=='__main__':
 	DB.clear()
 	print "Cleared the database..."
@@ -186,3 +184,4 @@ if __name__=='__main__':
 	photo_tags_to_db()
 	print "Added photo tags."
 	#add_tag_relateds()
+	
