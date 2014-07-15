@@ -12,8 +12,8 @@ from py2neo import neo4j
 #import esmre 	# using esmre and not just esm to take advantage of regexes
 
 
-#GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL_3", "http://localhost:7474/db/data/")
-GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL_3']
+#GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL", "http://localhost:7474/db/data/")
+GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL']
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
 
