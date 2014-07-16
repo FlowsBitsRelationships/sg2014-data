@@ -40,7 +40,7 @@ def push_4sqexplore_to_db():
 							'lon': 'lon'
 						})
 						
-						subfolder = 'coffee'
+						#subfolder = 'coffee'
 						add_batch( dictionaries, subfolder)
 						add_nodes_to_index( 'FourSqrVenues_explore' )
 			except: print 'no file'
@@ -50,12 +50,15 @@ def push_4sqexplore_to_db():
 def add_batch(dictionaries, subfolder):
 	""" Does a batch insert of photo data into the db. """
 	batch = neo4j.WriteBatch( DB )	
+	
+	usr_cnt = []
 	count = 0
 	for i, dictionary in dictionaries.iteritems():
 		users = dictionary['user']
 		# get rid of dumbly created dictionary keys, and add the right ones, plus a few new ones
 		# we also cannot have non primitive datatypes as properties, so we need to serialize them
 		new_dict = {}
+		
 		for prop in dictionary:
 			if isinstance(dictionary[prop], list) or isinstance(dictionary[prop], dict):
 				new_dict[prop] = json.dumps(dictionary[prop])
@@ -64,7 +67,7 @@ def add_batch(dictionaries, subfolder):
 			new_dict['lat'] = dictionary['latitude']
 			new_dict['lon'] = dictionary['longitude']
 			new_dict['venue_type'] = subfolder
-			count +=1
+		count +=1
 
 		
 		qs = """
@@ -72,13 +75,18 @@ def add_batch(dictionaries, subfolder):
 		"""
 		batch.append_cypher( qs, new_dict )
 		
+		xcount = 0
 		for user in users:
 			qu = """MERGE (u:FourSqrUsers { user_name:{user}})""" 
 			batch.append_cypher(qu, {'user':user})
 			re = """MATCH (a:FourSqrUsers {user_name: {user}}), (b:FourSqrVenues_explore {place_id: {place_id}}) MERGE (a)-[r:CHECKED_IN]->(b)""" 
 			batch.append_cypher(re, {'user':user,'place_id':str(new_dict['place_id'])})
+			xcount +=1
+		usr_cnt.append(xcount)
+			
 	r = batch.submit()
-	print 'added', count, 'venues'
+	print 'added', count, 'venues', 'added', sum(usr_cnt), 'users'
+	
 	
 #CREATE (n {id:'something'})=[r:sameid]->(m)
 def add_nodes_to_index( label='FourSqrVenues_explore' ):
