@@ -140,39 +140,7 @@ def push_hkgov_to_db(path):
 				batch.create(rel(placeNode, "IsPlaceType", typeNode))
 		results = batch.submit()
 
-# Given a JSON file of four square explore data, push it into the DB
-def push_4sqexplore_to_db():
-	folder = 'sample_jsons/4sq'
-	files = os.listdir(folder)
-	for file in files:
-		with open(folder+'/'+file) as f:
-			dictionaries = json.load(f)
-			if len(dictionaries) == 0: 
-				continue
-			else: 
-				# create the neo spatial points index
-				idx_name = DB.get_or_create_index( neo4j.Node, 'points_hk', {
-					'provider':'spatial',
-					'geometry_type': 'point',
-					'lat': 'lat',
-					'lon': 'lon'
-				})
-				
-				batch = neo4j.WriteBatch(DB)
-		
-				# Now save the places to the db and give them a relationship to their node type
-				for i, dictionary in dictionaries.iteritems():
-					users = dictionary['user']
-					place = {'lat':float(dictionary['latitude']), 'lon':float(dictionary['longitude']), 'name':dictionary['name']}
-					placeNode = batch.create(node(place))
-					batch.add_to_index( neo4j.Node, 'points_hk', 'k', 'v', placeNode )
-					batch.add_labels( placeNode, '4SqrVenues' )
-					for user in users:
-						userNode = batch.create( node({'username':user}) )
-						batch.add_labels( userNode, '4SqrUsers' )
-						batch.create(rel( userNode, 'CheckedIn', placeNode))
-				results = batch.submit()
-				#print results
+
 
 
 def crawl_s3():
@@ -309,5 +277,6 @@ if __name__=='__main__':
 	#add_nodes_to_index( 'TrafficPoint' )
 	
 	#Let's try and load data from individual, one-off JSON files
-	push_hkgov_to_db('sample_jsons/hk_gov.json')
-	push_4sqexplore_to_db()
+	#push_hkgov_to_db('sample_jsons/hk_gov.json')
+	
+	#push_4sqexplore_to_db()
