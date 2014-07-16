@@ -5,7 +5,10 @@ startup.sh
 envvars
 variables.sh
 db_info
+<<<<<<< HEAD
+=======
 sample_jsons/*
+>>>>>>> 2f70d277e73e3fcae16e7fa8e877c67d4b4f8a68
 *.pyc
 data.json
 /data
