@@ -33,7 +33,8 @@ def push_tweet_to_db( tid, tweet, points_idx ):
 				location: {up}.location,
 				lang: {up}.lang,
 				name: {up}.name,
-				desscription: {up}.description
+				desscription: {up}.description,
+				time: {tp}.time
 			})
 			MERGE (user)-[r:TWEETED{ time:{tp}.time }]->(tweet)
 			RETURN tweet
@@ -90,3 +91,6 @@ def all_tweets_s3_to_neo():
 if __name__=="__main__":
     all_tweets_s3_to_neo()
     print 'Finished processing tweets.'
+
+
+### Stopped adding tweets at : 7/9/14 some time, maybe about 8:00am

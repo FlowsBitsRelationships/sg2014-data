@@ -18,16 +18,33 @@ GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL']
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
 def get_flickr_data():
-	with open ('sample_json/2831flickr_search.json','r') as flickFile:
-		return [ json.loads( flickFile.read() ) ]
-		
+	""" Grabs all the flickr data """
+	root_dir = '/SG/sg2014-data/all_jsons/flickr'
+	count = 0
+	for fpath in os.listdir( root_dir ):
+		count += 1
+		if count > 5: return
+		with open ( root_dir + '/' + fpath,'r') as flickFile:
+			data_dict = json.loads( flickFile.read() )
+		data_list = [ p for i,p in data_dict.iteritems() ]
+		photo_count = len( data_list )
+		if photo_count < 1:
+			print "No photos in %s. Skipping it." % fpath
+			continue
+		elif photo_count < 25:
+			print "Adding all %d photos in %s..." % ( photo_count, fpath )
+			yield data_list
+		else:
+			print "Adding first 25 photos in %s..." % fpath
+			yield data_list[:25]
+
 
 def is_user_local( location ):
 	""" Based on a Flickr user location string, determines whether or not
 		they are local to Hong Kong. """
 	if location == '':
 		return 'Unknown'
-	elif re.search('(hong\s*kong|hk)', location.lower() ) is not None:
+	elif re.search('(hong\s*kong|\s+hk\s+)', location.lower() ) is not None:
 		return 'True'
 	else:
 		return 'False'
@@ -97,7 +114,7 @@ def add_users_batch( users ):
 def add_photo_user_rels():
 	""" Adds relationships between photos and the users who took them. """
 	query_string = """
-		MATCH (u:FlickrUser), (p:FlickrPhoto) WHERE p.user = u.user_id MERGE (u)-[a:Authored]->(p)
+		MATCH (u:FlickrUser), (p:FlickrPhoto) WHERE p.user = u.user_id MERGE (u)-[a:AUTHORED]->(p)
 	"""
 	q = neo4j.CypherQuery( DB, query_string )
 	results = q.execute()
@@ -113,8 +130,8 @@ def flickr_to_neo():
 			'lon': 'lon'
 	})
 	for photo_list in get_flickr_data():
-		add_photos_batch( [ p for i,p in photo_list.iteritems() ], 'points_hk'  )
-		for photo_id, photo in photo_list.iteritems():
+		add_photos_batch( photo_list, 'points_hk'  )
+		for i, photo in enumerate( photo_list ):
 			users.add( ( photo['user'], photo['user_location'] ) )
 	for user, location in users:
 		add_user_node( user, location )
@@ -127,7 +144,7 @@ def photo_tags_to_neo( photo_id, tag_list ):
 		query_string = """
 			MATCH (p:FlickrPhoto { photo_id:{photo_id}})
 			MERGE (tag:FlickrTag { text:{tag_text}})
-			MERGE (p)-[:Tagged]->(tag)
+			MERGE (p)-[:TAGGED]->(tag)
 		"""
 		q = neo4j.CypherQuery( DB, query_string )
 		q.execute( photo_id=photo_id, tag_id=tag[0], tag_text=tag[1] )
@@ -136,32 +153,32 @@ def photo_tags_to_neo( photo_id, tag_list ):
 def photo_tags_to_db():
 	""" Adds Flickr photo tags to the db. """
 	flickr = flickrapi.FlickrAPI( FLICKR_API_KEY )
-	d = get_flickr_data()[0]
-	for photo in [ data for i,data in d.iteritems() ]:
-		print "Getting tags for %s" % photo['title']
-		t = flickr.tags_getListPhoto( photo_id=photo['photo_id'] )
-		tags= []
-		for tag in t[0][0]:
-			tags.append( ( tag.attrib['id'], tag.text ) )
-		photo_tags_to_neo( photo['photo_id'], tags )
+	for photo_list in get_flickr_data():
+		for photo in photo_list:
+			print "Getting tags for %s" % photo['title']
+			t = flickr.tags_getListPhoto( photo_id=photo['photo_id'] )
+			tags= []
+			for tag in t[0][0]:
+				tags.append( ( tag.attrib['id'], tag.text ) )
+			photo_tags_to_neo( photo['photo_id'], tags )
 	
 		
 def photo_tags_to_db_batch():
 	""" Adds photo tags to the db via a batch operation. """
 	flickr = flickrapi.FlickrAPI( FLICKR_API_KEY )
-	batch = neo4j.WriteBatch( DB )
-	d = get_flickr_data()[0]
-	for photo in [ data for i,data in d.iteritems() ]:
-		print "Getting tags for %s" % photo['title']
-		t = flickr.tags_getListPhoto( photo_id=photo['photo_id'] )
-		for tag in t[0][0]:
-			q = """
-				MATCH (p:FlickrPhoto {photo_id:{photo_id}})
-				MERGE (t:FlickrTag {text:{text}})
-				MERGE (p)-[:Tagged]->(t)
-			"""
-			batch.append_cypher( q, {'photo_id':photo['photo_id'], 'id':tag.attrib['id'], 'text': tag.text })
-	batch.submit()
+	for photo_list in get_flickr_data():
+		batch = neo4j.WriteBatch( DB )
+		for photo in photo_list:
+			print "Getting tags for %s" % photo['title']
+			t = flickr.tags_getListPhoto( photo_id=photo['photo_id'] )
+			for tag in t[0][0]:
+				q = """
+					MATCH (p:FlickrPhoto {photo_id:{photo_id}})
+					MERGE (t:FlickrTag {text:{text}})
+					MERGE (p)-[:TAGGED]->(t)
+				"""
+				batch.append_cypher( q, {'photo_id':photo['photo_id'], 'id':tag.attrib['id'], 'text': tag.text })
+		batch.submit()
 
 
 def add_tag_relateds():
@@ -170,7 +187,7 @@ def add_tag_relateds():
 	limit = 100
 	skip = 0
 	query_string_1 = """ MATCH (t:FlickrTag) RETURN t SKIP {skip} LIMIT {limit} """
-	query_string_2 = """ MATCH (t:FlickrTag {text:{tag_text1}}), (u:FlickrTag {text:{tag_text2}}) MERGE (t)-[:FlickrRelated]->(u) """
+	query_string_2 = """ MATCH (t:FlickrTag {text:{tag_text1}}), (u:FlickrTag {text:{tag_text2}}) MERGE (t)-[:FLICKR_RELATED]->(u) """
 	while True:
 		print "Adding related edges for %d through %d..." % ( skip, skip+limit )
 		q = neo4j.CypherQuery( DB, query_string_1 )
@@ -189,8 +206,15 @@ def add_tag_relateds():
 if __name__=='__main__':
 	#DB.clear()
 	#print "Cleared the database..."
-	flickr_to_neo()
-	print "Added users and photos..."
+	
+	# flickr_to_neo()
+	# print "Added users and photos."
 	photo_tags_to_db_batch()
 	print "Added photo tags."
 	add_tag_relateds()
+	print "Added relationships between tags."
+	
+	# for plist in get_flickr_data():
+	# 	for photo in plist:
+	# 		print
+	# 		print photo

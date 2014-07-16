@@ -85,15 +85,22 @@ def push_traffic_json_to_db(json):
 	
 def add_nodes_to_index( label='TrafficPoint' ):
 	""" Adds nodes with the given label to the spatial points index. Developed in context of traffic nodes. """
+	# DB.delete_index( neo4j.Node, 'road_hk' )
+	# DB.delete_index( neo4j.Node, 'points_hk' )
+	# return
 	points_idx = DB.get_or_create_index( neo4j.Node, 'points_hk', {
 		'provider':'spatial',
 		'geometry_type': 'point',
 		'lat': 'lat',
 		'lon': 'lon'
 	})
+	#points_idx = DB.get_index( neo4j.Node, 'road_hk' )
+	if points_idx is None: 
+		print "Could not find the points_hk index"
+		return
 	qs = "MATCH (t:%s) RETURN t" % label
 	q = neo4j.CypherQuery( DB, qs )
-	results = q.execute( label=label )
+	results = q.execute()
 	for i, r in enumerate( results.data ):
 		n = r.values[0]
 		points_idx.add( 'k', 'v', n )
@@ -104,41 +111,85 @@ def add_nodes_to_index( label='TrafficPoint' ):
 def push_hkgov_to_db(path):
 	with open(path) as f:
 		dictionaries = json.load(f)
-			
-		# create the neo spatial points index
-		idx_name = DB.get_or_create_index( neo4j.Node, 'points_hk', {
-			'provider':'spatial',
-			'geometry_type': 'point',
-			'lat': 'lat',
-			'lon': 'lon'
-		})
-		
-		# save the type nodes to the database
-		batch = neo4j.WriteBatch(DB)
-		hkGovTypes = {}	
-		for dictionary in dictionaries:
-			hkGovType = str(dictionary['type'])
-			if hkGovType not in hkGovTypes:
-				newNode = batch.create(node({'type':hkGovType}))
-				batch.add_labels( newNode, 'HKGov', 'PlaceType' )		
-				hkGovTypes[hkGovType] = newNode
-				print "added ", hkGovType
-		batch.submit()
-		
-	
-		# Now save the places to the db and give them a relationship to their node type
-		for dictionary in dictionaries:
-			point = {'lat':float(dictionary['lat']), 'lon':float(dictionary['lon']), 'content':dictionary['content'], 'origin':'hk_gov' }
-			placeNode = batch.create(node(point))
-			batch.add_to_index( neo4j.Node, 'points_hk', 'k', 'v', placeNode ) 
+	points_idx = DB.get_or_create_index( neo4j.Node, 'points_hk', {
+		'provider':'spatial',
+		'geometry_type': 'point',
+		'lat': 'lat',
+		'lon': 'lon'
+	})
+	# save the type nodes to the database
+	batch = neo4j.WriteBatch(DB)
+	hkGovTypes = {}	
+	for dictionary in dictionaries:
+		hkGovType = str(dictionary['type'])
+		if hkGovType not in hkGovTypes:
+			typeNode = batch.create(node({'type':hkGovType}))
+			batch.add_labels( typeNode, 'PlaceType' )		
+			hkGovTypes[hkGovType] = typeNode
+			print "adding", hkGovType
+	# Now save the places to the db and give them a relationship to their node type
+	for dictionary in dictionaries:
+		place_info = {'lat':float(dictionary['lat']), 'lon':float(dictionary['lon']), 'name':dictionary['content'], 'origin':'hk_gov' }
+		placeNode = batch.create( node( place_info ) )
+		batch.add_labels( placeNode, 'Place' )
+		batch.add_to_index( neo4j.Node, 'points_hk', 'k', 'v', placeNode )  
+		hkGovType = str(dictionary['type'])
+		if hkGovType in hkGovTypes:
+			typeNode = hkGovTypes[hkGovType]
+			batch.create(rel(placeNode, "IS_PLACE_TYPE", typeNode))
+	print "Submitting batch request..."
+	r = batch.submit()
+	print r
 
-			batch.add_labels( placeNode, 'Place', 'HKGov' )
-			
-			hkGovType = str(dictionary['type'])
-			if hkGovType in hkGovTypes:
-				typeNode = hkGovTypes[hkGovType]
-				batch.create(rel(placeNode, "IsPlaceType", typeNode))
-		results = batch.submit()
+
+def push_hkgov_to_db_cypher( path ):
+	with open(path) as f:
+		dictionaries = json.load(f)
+	# save the type nodes to the database
+	batch = neo4j.WriteBatch(DB)
+	hkGovTypes = {}	
+	for dictionary in dictionaries:
+		hkGovType = str(dictionary['type'])
+		if hkGovType not in hkGovTypes:
+			typeNode = batch.create(node({'type':hkGovType}))
+			hkGovTypes[hkGovType] = typeNode
+			print "adding", hkGovType
+	# Now save the places to the db and give them a relationship to their node type
+	for dictionary in dictionaries:
+		place_info = {'lat':float(dictionary['lat']), 'lon':float(dictionary['lon']), 'name':dictionary['content'], 'origin':'hk_gov' }
+		qs = """ 
+			MERGE (p:Place:HKGov { lat:{p}.lat, lon:{p}.lon, name:{p}.content, origin:'hk_gov' })
+		"""
+		hkGovType = str(dictionary['type'])
+		if hkGovType in hkGovTypes:
+			#dictionary['type'] 
+			qs += """
+				MERGE (pt:PlaceType:HKGov { type:{p}.type })
+				MERGE (p)-[:IS_PLACE_TYPE]->(pt)
+			"""
+		batch.append_cypher( qs, dictionary )
+	r = batch.submit()
+
+
+def push_hkgov_to_db_simple(path):
+	with open(path) as f:
+		dictionaries = json.load(f)
+	for dictionary in dictionaries:
+		qs = """ 
+			MERGE (p:HKGov:Place { lat:{pi}.lat, lon:{pi}.lon, name:{pi}.name, origin:"hk_gov", type:{pi}.type })
+			MERGE (t:HKGov:PlaceType { type:{ptype}})
+			MERGE (p)-[:IS_PLACE_TYPE]->(t)
+		"""
+		data = {
+			 'lat': float( dictionary['lat'] ),
+			 'lon': float( dictionary['lon'] ),
+			 'name': dictionary['content'],
+			 'type': dictionary['type']
+			}
+		q = neo4j.CypherQuery( DB, qs )
+		q.execute( pi=data, ptype=data['type'] )
+		print "Added %s..." % data['name']
+		
 
 # Given a JSON file of four square explore data, push it into the DB
 def push_4sqexplore_to_db():
@@ -299,7 +350,6 @@ def add_places_relationships():
 			"""
 		q = neo4j.CypherQuery( DB, qs )
 		q.execute( tid=tid, pid=pid )
-#
 
 
 if __name__=='__main__':
@@ -307,7 +357,7 @@ if __name__=='__main__':
 	#crawl_s3()
 	# Afterwards, add the traffic endpoint nodes to the spatial index
 	#add_nodes_to_index( 'TrafficPoint' )
-	
 	#Let's try and load data from individual, one-off JSON files
-	push_hkgov_to_db('sample_jsons/hk_gov.json')
-	push_4sqexplore_to_db()
+	push_hkgov_to_db('sample_json/hk_gov.json')
+	#add_nodes_to_index( 'Place' )
+	#push_4sqexplore_to_db()
