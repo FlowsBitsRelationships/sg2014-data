@@ -17,37 +17,40 @@ DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
 # Given a JSON file of four square explore data, push it into the DB
 def push_4sqexplore_to_db():
-	'''folder = 'all_jsons/4sq'
+	folder = 'all_jsons/4sq'
 	subfolders = list(os.walk(folder))[0][1]
 	for subfolder in subfolders:
 		files = os.listdir(folder+'/'+subfolder)
-		print files'''
+		#print files
 	
-	folder = 'sample_jsons/4sq'
-	files = os.listdir(folder)
-	for file in files:
-		with open(folder+'/'+file) as f:
-			dictionaries = json.load(f)
-			if len(dictionaries) == 0: 
-				continue
-			else: 
-				# create the neo spatial points index
-				idx_name = DB.get_or_create_index( neo4j.Node, 'points_hk', {
-					'provider':'spatial',
-					'geometry_type': 'point',
-					'lat': 'lat',
-					'lon': 'lon'
-				})
-				
-				subfolder = 'coffee'
-				add_batch( dictionaries, subfolder)
-				add_nodes_to_index( 'FourSqrVenues_explore' )
+		#folder = 'sample_jsons/4sq'
+		#files = os.listdir(folder)
+		for file in files:
+			try:
+				with open(folder+'/'+subfolder+'/'+file) as f:
+					dictionaries = json.load(f)
+					if len(dictionaries) == 0: 
+						continue
+					else: 
+						# create the neo spatial points index
+						idx_name = DB.get_or_create_index( neo4j.Node, 'points_hk', {
+							'provider':'spatial',
+							'geometry_type': 'point',
+							'lat': 'lat',
+							'lon': 'lon'
+						})
+						
+						subfolder = 'coffee'
+						add_batch( dictionaries, subfolder)
+						add_nodes_to_index( 'FourSqrVenues_explore' )
+			except: print 'no file'
 				
 
 	
 def add_batch(dictionaries, subfolder):
 	""" Does a batch insert of photo data into the db. """
 	batch = neo4j.WriteBatch( DB )	
+	count = 0
 	for i, dictionary in dictionaries.iteritems():
 		users = dictionary['user']
 		# get rid of dumbly created dictionary keys, and add the right ones, plus a few new ones
@@ -61,6 +64,7 @@ def add_batch(dictionaries, subfolder):
 			new_dict['lat'] = dictionary['latitude']
 			new_dict['lon'] = dictionary['longitude']
 			new_dict['venue_type'] = subfolder
+			count +=1
 
 		
 		qs = """
@@ -72,9 +76,9 @@ def add_batch(dictionaries, subfolder):
 			qu = """MERGE (u:FourSqrUsers { user_name:{user}})""" 
 			batch.append_cypher(qu, {'user':user})
 			re = """MATCH (a:FourSqrUsers {user_name: {user}}), (b:FourSqrVenues_explore {place_id: {place_id}}) MERGE (a)-[r:CHECKED_IN]->(b)""" 
-			print re
 			batch.append_cypher(re, {'user':user,'place_id':str(new_dict['place_id'])})
 	r = batch.submit()
+	print 'added', count, 'venues'
 	
 #CREATE (n {id:'something'})=[r:sameid]->(m)
 def add_nodes_to_index( label='FourSqrVenues_explore' ):
@@ -96,6 +100,6 @@ def add_nodes_to_index( label='FourSqrVenues_explore' ):
 		points_idx.add( 'k', 'v', n )
 				
 if __name__=='__main__':
-	DB.clear()
+	#DB.clear()
 	push_4sqexplore_to_db()
 	
