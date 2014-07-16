@@ -99,6 +99,6 @@ def foursquare_trending_to_db():
             #     print
             
 if __name__=="__main__":
-    DB.clear()
+    # DB.clear()
     foursquare_trending_to_db()
     # print DB
