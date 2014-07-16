@@ -94,5 +94,5 @@ def foursquare_to_neo():
     # print nodes
 	
 if __name__=="__main__":
-    DB.clear()
+    #DB.clear()
     foursquare_to_neo()
