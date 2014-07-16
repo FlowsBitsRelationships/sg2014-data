@@ -62,11 +62,14 @@ def foursquare_trending_to_db():
                     	else:
                     		newDict[placeDictKey] = placeDict[placeDictKey]
             
+            print newDict
+            print
+            
             # Extract desired keys into new dict
-			foursquareExploreDict = {}
-			for key, value in newDict.items():
-			    if key in ['place_id', 'lat', 'lon', 'time', 'category', 'data_source', 'name', 'here_now', 'checkins']:
-			        foursquareExploreDict[key] = value
+            foursquareExploreDict = {}
+            for key, value in newDict.items():
+                if key in ['place_id', 'lat', 'lon', 'time', 'category', 'data_source', 'name', 'here_now', 'checkins']:
+                    foursquareExploreDict[key] = value
             
             # Query string to create node
             qs = "MERGE (n:FourSqrVenues_trending {"
@@ -91,14 +94,38 @@ def foursquare_trending_to_db():
 			"""
 			
             batch.append_cypher(createString, {'nodeId':str(foursquareExploreDict['place_id'])})
-            # batch.add_to_index( neo4j.Node, 'points_hk', 'k', 'v', foursquareTrendingNode )
+
+            # Match two nodes with the same place id
+            # MATCH (n:FourSqrVenues_explore), (p:FourSqrVenues_trending) where n.place_id = p.place_id return n, p limit 100
+            
+            # create a test explore node with a specific place id
+            # create (n:FourSqrVenues_trending {name:'Test Trend Node', checkins:'20176', place_id:'4c54fe6b5b839521789ada31'})
+            
             
             results = batch.submit()
             # for i in results:
             #     print i#    u'{0}'.format(i)
             #     print
             
+            
+# Take all the users in the db that have checked into a 4sq explore venue,
+# and link those exact same users with the trending venues
+def foursquareTrendingLinkUsers():
+    batch = neo4j.WriteBatch(DB)
+    
+    # try and link user data from user->explore to user->trending
+    queryString = """
+    MATCH (e:FourSqrVenues_explore), (t:FourSqrVenues_trending) where e.place_id = t.place_id 
+    MATCH (e)<--(u:FourSqrUsers)
+    MERGE (u)-[:CHECKD_IN]->(t) return u, t, e limit 100
+	"""
+    
+    batch.append_cypher(queryString)
+    results = batch.submit() 
+            
 if __name__=="__main__":
-    DB.clear()
+    #DB.clear()
+    print DB
     foursquare_trending_to_db()
+    foursquareTrendingLinkUsers()
     # print DB
