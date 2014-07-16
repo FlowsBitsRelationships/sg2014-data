@@ -17,27 +17,13 @@ DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
 def get_s3_data():
     conn = S3Connection()
-    all_keys = conn.get_bucket('sg14fbr').get_all_keys()
-    foursquare_keys = []
-    
-    for key in all_keys:
-        if "foursquare" in key.key:
-            foursquare_keys.append(key)
-    
-    # bucket = conn.get_bucket('sg14fbr')
-    # test_keys = bucket.get_all_keys(max_keys=50)
-    # test_keys = [bucket.get_key('data/foursquare/2014-06-22 05:49:17.485494foursquare_trending.json'),
-		  #      bucket.get_key('data/foursquare/2014-06-22 05:54:17.543465foursquare_trending.json'),
-		  #      bucket.get_key('data/foursquare/2014-07-14 06:29:21.646841foursquare_trending.json')]
-    
-    test_keys = foursquare_keys[:10]
-    
-    for key in test_keys:
-        if key is None:
-            continue
+    bucket = conn.get_bucket('sg14fbr')
+    for key in bucket.list( prefix='data/foursquare' ):
 
-        print 'accessing', key
-
+        #test_keys = [bucket.get_key('data/foursquare/2014-06-22 05:49:17.485494foursquare_trending.json'),
+        		  #      bucket.get_key('data/foursquare/2014-06-22 05:54:17.543465foursquare_trending.json'),
+        		  #      bucket.get_key('data/foursquare/2014-07-14 06:29:21.646841foursquare_trending.json')]
+    
         data_str = key.get_contents_as_string()
         timestamp = re.search(r'(\d+)([^a-z]+)', key.key).group()
         if data_str != '':
@@ -112,5 +98,5 @@ def foursquare_to_neo():
     # print nodes
 	
 if __name__=="__main__":
-    DB.clear()
+    #DB.clear()
     foursquare_to_neo()

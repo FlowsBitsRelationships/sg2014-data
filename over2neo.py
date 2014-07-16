@@ -6,19 +6,27 @@ from boto.s3.key import Key
 import os
 import json
 import time
+import math
 from py2neo import neo4j
+from py2neo import *		# only really needed for WriteBatch
 
 
 
 #import esm
 #import esmre 	# using esmre and not just esm to take advantage of regexes
 
+########################################
+#
+# CONSTANTS
 
-#GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL_3", "http://localhost:7474/db/data/")
+
 GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL']
+
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
-
+#
+#######################################
+		
 
 def push_tweet_to_db( tid, tweet, points_idx ):
 
@@ -60,109 +68,138 @@ def push_tweet_to_db( tid, tweet, points_idx ):
 	points_idx.add('k', 'v', tweet_node )
 	
 	
-def push_traffic(data):
-	# twitter.py accidentally is swapping lattitude and longitude, swap it back here
-	data_props['lat'], data_props['lon'] = data_props['lon'], data_props['lat']
-	print data_props
-	query_string = """
-		MERGE (node:Traffic { lat: {tr}.lat, lon: {tr}.lon, speed: {tr}.hk_gov_speed, road_type: {tr}.road_type, 
-							  saturation: {tr}.saturation, time: {tr}.date })
-		
-	"""
-
-	query_string = """ 
-			MERGE (tweet:Social:Tweets { lat: {tp}.lat, lon: {tp}.lon, content: {tp}.content, user: {up}.username, origin:{origin}, raw_source:{tweet} })
-			MERGE (user:Users:TwitterUsers {  
-				username: {up}.username,
-				followers_count: {up}.followers_count,
-				id_str: {up}.id_str,
-				location: {up}.location,
-				lang: {up}.lang,
-				name: {up}.name,
-				desscription: {up}.description
-			})
-			MERGE (user)-[r:TWEETED{ time:{tp}.time }]->(tweet)
-			RETURN tweet
+# Given some JSON data that represents traffic 
+def push_traffic_json_to_db(json):
+	batch = neo4j.WriteBatch(DB)
+	i = 0
+	while i < len( json ):
+		s = json[i]
+		e = json[i+1]
+		q = """
+			MERGE (start:Traffic:TrafficPoint {lat:{s_lat}, lon:{s_lon}})
+			MERGE (end:Traffic:TrafficPoint {lat:{e_lat}, lon:{e_lon}})
+			MERGE (start)-[:Traffic {time:{time}, saturation:{sat}, speed:{speed}, road_type:{rt}}]->(end)
 		"""
-	q = neo4j.CypherQuery( DB, query_string )
-	if not user_props:
-		user_props = {}
-	results = q.execute( tp=data_props, up=user_props, origin='traffic', tweet=tid )
-		
-	try:
-		print results.data[0].values[0]
-	except: pass
-	new_node = results.data[0].values[0]
-	points_idx.add('k', 'v', new_node )
+		batch.append_cypher( q, {'s_lat': float( s['lat'] ), 's_lon': float( s['lon'] ), 'e_lat':float(  e['lat'] ), 'e_lon': float( e['lon'] ), 
+		                         'time': e['date'], 'sat': e['saturation'], 'speed': e['speed'], 'rt': e['road_type'] })
+		i += 2
+	nodes = batch.submit()
 	
 	
-def push_to_db( tid, all_data, points_idx ):# tweet instead of all_data
+def add_nodes_to_index( label='TrafficPoint' ):
+	""" Adds nodes with the given label to the spatial points index. Developed in context of traffic nodes. """
+	points_idx = DB.get_or_create_index( neo4j.Node, 'points_hk', {
+		'provider':'spatial',
+		'geometry_type': 'point',
+		'lat': 'lat',
+		'lon': 'lon'
+	})
+	qs = "MATCH (t:%s) RETURN t" % label
+	q = neo4j.CypherQuery( DB, qs )
+	results = q.execute( label=label )
+	for i, r in enumerate( results.data ):
+		n = r.values[0]
+		points_idx.add( 'k', 'v', n )
 	
-	data_props = { k: v for k,v in all_data.iteritems() if k != 'raw_source' }
-	
-	if 'source' in data_props:  
-		source = data_props['source']
-	elif 'data_source' in data_props:
-		source = data_props['data_source']
-	elif 'tweet_id' in data_props:
-		source = 'Twitter'
-	print data_props, source
-	if source == 'Twitter':
-		pass
 
-
-
-def push_all_to_db( stuff, point_idx ):
-	count = 0
-	for tid, data in stuff.iteritems():
-		push_to_db( tid, data, point_idx )
-		count += 1
-	print "Added %d data to the db." % count
-
-
-def push_data_to_db():
-	points_3 = DB.get_or_create_index( neo4j.Node, 'points_hk', {
+# A function that only needs to be called once
+# It reads data from the HK gov JSON file and places it into the DB
+def push_hkgov_to_db(path):
+	with open(path) as f:
+		dictionaries = json.load(f)
+			
+		# create the neo spatial points index
+		idx_name = DB.get_or_create_index( neo4j.Node, 'points_hk', {
 			'provider':'spatial',
 			'geometry_type': 'point',
 			'lat': 'lat',
 			'lon': 'lon'
 		})
-	all_data = crawl_s3()
-	push_all_to_db( all_data, points_3 )
-	#add_places()
+		
+		# save the type nodes to the database
+		batch = neo4j.WriteBatch(DB)
+		hkGovTypes = {}	
+		for dictionary in dictionaries:
+			hkGovType = str(dictionary['type'])
+			if hkGovType not in hkGovTypes:
+				newNode = batch.create(node({'type':hkGovType}))
+				batch.add_labels( newNode, 'HKGov', 'PlaceType' )		
+				hkGovTypes[hkGovType] = newNode
+				print "added ", hkGovType
+		batch.submit()
+		
+	
+		# Now save the places to the db and give them a relationship to their node type
+		for dictionary in dictionaries:
+			point = {'lat':float(dictionary['lat']), 'lon':float(dictionary['lon']), 'content':dictionary['content'], 'origin':'hk_gov' }
+			placeNode = batch.create(node(point))
+			batch.add_to_index( neo4j.Node, 'points_hk', 'k', 'v', placeNode ) 
+
+			batch.add_labels( placeNode, 'Place', 'HKGov' )
+			
+			hkGovType = str(dictionary['type'])
+			if hkGovType in hkGovTypes:
+				typeNode = hkGovTypes[hkGovType]
+				batch.create(rel(placeNode, "IsPlaceType", typeNode))
+		results = batch.submit()
+
+# Given a JSON file of four square explore data, push it into the DB
+def push_4sqexplore_to_db():
+	folder = 'sample_jsons/4sq'
+	files = os.listdir(folder)
+	for file in files:
+		with open(folder+'/'+file) as f:
+			dictionaries = json.load(f)
+			if len(dictionaries) == 0: 
+				continue
+			else: 
+				# create the neo spatial points index
+				idx_name = DB.get_or_create_index( neo4j.Node, 'points_hk', {
+					'provider':'spatial',
+					'geometry_type': 'point',
+					'lat': 'lat',
+					'lon': 'lon'
+				})
+				
+				batch = neo4j.WriteBatch(DB)
+		
+				# Now save the places to the db and give them a relationship to their node type
+				for i, dictionary in dictionaries.iteritems():
+					users = dictionary['user']
+					place = {'lat':float(dictionary['latitude']), 'lon':float(dictionary['longitude']), 'name':dictionary['name']}
+					placeNode = batch.create(node(place))
+					batch.add_to_index( neo4j.Node, 'points_hk', 'k', 'v', placeNode )
+					batch.add_labels( placeNode, '4SqrVenues' )
+					for user in users:
+						userNode = batch.create( node({'username':user}) )
+						batch.add_labels( userNode, '4SqrUsers' )
+						batch.create(rel( userNode, 'CheckedIn', placeNode))
+				results = batch.submit()
+				#print results
 
 
 def crawl_s3():
-	# with fourquare it returns a dictionary of dictionaries
-	# with twitter, it returns a dictionary of dictionaries
-	# with traffic, it returns a list of dictionaries
-	# with hk_gov, it returns a list of dictionaries
-	
 	data_dict = {}
 	conn = S3Connection()
 	bucket = conn.get_bucket('sg14fbr')
-	test = [bucket.get_key('data/traffic/2014-07-13 06:58:42.942341traffic.json'),
+	jsons = [bucket.get_key('data/traffic/2014-07-13 06:58:42.942341traffic.json'),
 		bucket.get_key('data/twitter/2014-07-10 18:22:12.990921tweets.json'),
 		bucket.get_key('data/foursquare/2014-07-14 06:29:21.646841foursquare_trending.json')]
-	for key in test:#list(bucket.list(prefix='data/twitter')):
+	count = -1
+	for key in bucket.list(prefix='data/traffic'):
+		count += 1
+		if count % 6 != 0: continue
+		print "Processing file %d..." % count
 		raw_data = key.get_contents_as_string()
 		if raw_data == '': continue
-		data = json.loads( raw_data )
-
+		my_json = json.loads( raw_data )
 		if 'hk_gov' in key.key:
-			new_data = {}
-			for i in data:
-				new_data[i['content']] = i
-			data = new_data
-						
+			new_json = {}
+			for i in my_json:
+				new_json[i['content']] = i
+			my_json = new_json
 		elif 'traffic' in key.key:
-			new_data = {}
-			for i in data:
-				new_data[i['date']] = i
-			data = new_data
-			
-		data_dict = dict( data_dict, **data )
-	return data_dict
+			push_traffic_json_to_db(my_json)
 
 
 def add_place_to_db( place, points_idx ):
@@ -265,9 +302,16 @@ def add_places_relationships():
 			"""
 		q = neo4j.CypherQuery( DB, qs )
 		q.execute( tid=tid, pid=pid )
-
+#
 
 
 if __name__=='__main__':
-	DB.clear()
-	add_places()
+	#DB.clear()
+	#crawl_s3()
+	# Afterwards, add the traffic endpoint nodes to the spatial index
+	#add_nodes_to_index( 'TrafficPoint' )
+	
+	#Let's try and load data from individual, one-off JSON files
+	push_hkgov_to_db('sample_jsons/hk_gov.json')
+	push_4sqexplore_to_db()
+
