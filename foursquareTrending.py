@@ -65,7 +65,7 @@ def foursquare_trending_to_db():
             # Extract desired keys into new dict
 			foursquareExploreDict = {}
 			for key, value in newDict.items():
-			    if key in ['id', 'lat', 'lon', 'time', 'category', 'data_source', 'name', 'here_now', 'checkins']:
+			    if key in ['place_id', 'lat', 'lon', 'time', 'category', 'data_source', 'name', 'here_now', 'checkins']:
 			        foursquareExploreDict[key] = value
             
             # Query string to create node
@@ -86,19 +86,19 @@ def foursquare_trending_to_db():
             # Query string to match trending nodes to explore nodes
             # String finds nodes and creates relationships
             createString = """
-            MATCH a = (n:FourSqrVenues_trending {id:{nodeId}}), b = (q:FourSqrVenues_explore {id:{nodeId}}) 
+            MATCH a = (n:FourSqrVenues_trending {place_id:{nodeId}}), b = (q:FourSqrVenues_explore {place_id:{nodeId}}) 
             MERGE (n)-[:SAME_ID]->(q) RETURN a, b
 			"""
 			
-            batch.append_cypher(createString, {'nodeId':str(foursquareExploreDict['id'])})
+            batch.append_cypher(createString, {'nodeId':str(foursquareExploreDict['place_id'])})
             # batch.add_to_index( neo4j.Node, 'points_hk', 'k', 'v', foursquareTrendingNode )
             
             results = batch.submit()
-            for i in results:
-                print i#    u'{0}'.format(i)
-                print
+            # for i in results:
+            #     print i#    u'{0}'.format(i)
+            #     print
             
 if __name__=="__main__":
-    #DB.clear()
+    DB.clear()
     foursquare_trending_to_db()
     # print DB
