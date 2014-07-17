@@ -24,7 +24,7 @@ def get_s3_data():
         		 bucket.get_key('data/foursquare/2014-07-14 06:29:21.646841foursquare_trending.json')]
         		  
     # for key in bucket.list( prefix='data/foursquare' ):
-    for key in test_keys:
+    for key in bucket.list( prefix='data/foursquare'):
         data_str = key.get_contents_as_string()
         timestamp = re.search(r'(\d+)([^a-z]+)', key.key).group()
         if data_str != '':
@@ -102,7 +102,8 @@ def foursquare_trending_to_db():
             # create (n:FourSqrVenues_trending {name:'Test Trend Node', checkins:'20176', place_id:'4c54fe6b5b839521789ada31'})
             
             
-            results = batch.submit()
+            try: results = batch.submit()
+            except: pass
             # for i in results:
             #     print i#    u'{0}'.format(i)
             #     print
@@ -119,6 +120,7 @@ def foursquareTrendingLinkUsers():
     MATCH (e)<--(u:FourSqrUsers)
     MERGE (u)-[:CHECKD_IN]->(t) return u, t, e limit 100
 	"""
+	
     
     batch.append_cypher(queryString)
     results = batch.submit() 
@@ -126,6 +128,9 @@ def foursquareTrendingLinkUsers():
 if __name__=="__main__":
     #DB.clear()
     print DB
-    foursquare_trending_to_db()
-    foursquareTrendingLinkUsers()
+    try: foursquare_trending_to_db()
+    except: pass
+    #foursquareTrendingLinkUsers()
     # print DB
+    
+    '''MATCH (source:FlickrPhoto)(destination:Tweets) MATCH p = allShortestPaths(source-->destination) RETURN NODES(p);'''

@@ -43,8 +43,10 @@ def push_4sqexplore_to_db():
 						#subfolder = 'coffee'
 						add_batch( dictionaries, subfolder)
 						add_nodes_to_index( 'FourSqrVenues_explore' )
+						print folder+'/'+subfolder+'/'+file	
 			except: print 'no file'
-				
+		
+			
 
 	
 def add_batch(dictionaries, subfolder):
@@ -85,7 +87,7 @@ def add_batch(dictionaries, subfolder):
 		usr_cnt.append(xcount)
 			
 	r = batch.submit()
-	print 'added', count, 'venues', 'added', sum(usr_cnt), 'users'
+	print 'added', count, 'venues', 'added', sum(usr_cnt), 'users', 'id', i
 	
 	
 #CREATE (n {id:'something'})=[r:sameid]->(m)
