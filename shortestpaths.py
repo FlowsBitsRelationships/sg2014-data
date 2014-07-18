@@ -39,9 +39,16 @@ def getShortestPaths():
     results = batch.submit() 
     for i in results[0]:
         lat, lon = i[0], i[1]
-        batch.append_cypher("START n=node:points_hk('withinDistance:[ %s, %s, 15.0 ]') WHERE (n:FourSqrVenues_explore) return n" %(lat, lon))
-    results = batch.submit() 
-    print results
+        batch.append_cypher("START n=node:points_hk('withinDistance:[ %s, %s, 0.10 ]') WHERE (n:FourSqrVenues_explore) return n" %(lat, lon))
+    new_results = batch.submit() 
+    
+    for i in new_results:
+        if i:
+            if isinstance(i, list):
+                for new_i in i:
+                    print u'%s' %(new_i.values[0])
+            else: print i._id
+            #print u'{0}'.format(i[0])
     '''
     for i in results:
         print i
