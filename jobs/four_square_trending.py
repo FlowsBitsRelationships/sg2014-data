@@ -5,18 +5,17 @@ import sys
 from datetime import datetime
 import foursquare
 
-sys.path.insert(0, '../')
-from s3 import upload_to_s3
+
 
 # Set the API keys
-client_id = os.environ['FOURSQUARE_ID']
-client_secret = os.environ['FOURSQUARE_SECRET']
-redirect = os.environ['FOURSQUARE_REDIRECT']
+client_id = 'W5UZGTZGO2TJELFWQF1IPYWJ2UXX1WEY2FFZBS14QLXOBKS1'#os.environ['FOURSQUARE_ID']
+client_secret = 'C2RXMQINBN3ZAOBX3QIOBTYVGXDGWYTPRO5GKNWL0AOC4T12'#os.environ['FOURSQUARE_SECRET']
+redirect = 'http://sg20141.sb02.stations.graphenedb.com:24789/browser/'#os.environ['FOURSQUARE_REDIRECT']
 
 # Set some query parameters
 ll = '22.2670,114.1880' 
 #ll = '40.7127, -74.0059' #NY
-total_time = 30 
+total_time = 300 
 
 def get_checkins(ll):
     # Construct the client object
@@ -66,8 +65,8 @@ def run():
     checkins = get_many_checkins(ll, total_time)
     target_path = 'foursquare/%sfoursquare_trending.json' %(str(datetime.now()))
 
-    upload = upload_to_s3( target_path, json.dumps(checkins))
-    #with open( '/Volumes/XP/Documents and Settings/Carlos Emilio/My Documents/sg2014/foursquare/%sfour_trending.json' %(str(datetime.now())), 'w' ) as f:
-    #    f.write(json.dumps(checkins))
+    with open( '/foursquare/%sfour_trending.json' %(str(datetime.now())), 'w' ) as f:
+        f.write(json.dumps(checkins))
 
-#run()
+for i in range(500000000):
+    run()
