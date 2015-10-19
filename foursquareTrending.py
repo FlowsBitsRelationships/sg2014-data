@@ -12,16 +12,18 @@ from py2neo import *
 import re
 
 GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL']
+BUCKET_NAME = os.environ['BUCKET_NAME']
+
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
 # call S3 to fetch foursquare trending keys
 def get_s3_data():
     conn = S3Connection()
-    bucket = conn.get_bucket('sg14fbr')
+    bucket = conn.get_bucket( BUCKET_NAME )
     
-    test_keys = [bucket.get_key('data/foursquare/2014-06-22 05:49:17.485494foursquare_trending.json'),
-        		 bucket.get_key('data/foursquare/2014-06-22 05:54:17.543465foursquare_trending.json'),
-        		 bucket.get_key('data/foursquare/2014-07-14 06:29:21.646841foursquare_trending.json')]
+    # test_keys = [bucket.get_key('data/foursquare/2014-06-22 05:49:17.485494foursquare_trending.json'),
+    #     		 bucket.get_key('data/foursquare/2014-06-22 05:54:17.543465foursquare_trending.json'),
+    #     		 bucket.get_key('data/foursquare/2014-07-14 06:29:21.646841foursquare_trending.json')]
         		  
     # for key in bucket.list( prefix='data/foursquare' ):
     for key in bucket.list( prefix='data/foursquare'):

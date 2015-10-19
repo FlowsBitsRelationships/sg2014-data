@@ -18,6 +18,7 @@ from py2neo import *		# only really needed for WriteBatch
 # CONSTANTS
 
 GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL']
+BUCKET_NAME = os.environ['BUCKET_NAME']
 
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
@@ -78,7 +79,7 @@ def all_tweets_s3_to_neo():
 			'lon': 'lon'
 		})
 	conn = S3Connection()
-	bucket = conn.get_bucket('sg14fbr')
+	bucket = conn.get_bucket(BUCKET_NAME)
 	for key in bucket.list( 'data/twitter' ):
 		raw_data = key.get_contents_as_string()
 		if raw_data == '': continue

@@ -15,3 +15,5 @@ data.json
 run_twitter.sh
 .DS_Store
 /sample_json/*
+
+*.env

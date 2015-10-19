@@ -10,14 +10,16 @@ import math
 from py2neo import neo4j
 from py2neo import *		# only really needed for WriteBatch
 
-#import esm
-#import esmre 	# using esmre and not just esm to take advantage of regexes
+import esm
+import esmre 	# using esmre and not just esm to take advantage of regexes
 
 ########################################
 #
 # CONSTANTS
 
 GRAPHENEDB_URL = os.environ['GRAPHENEDB_URL']
+BUCKET_NAME = os.environ['BUCKET_NAME']
+PLACE_FILE = 'sample_jsons/hk_gov.json'
 
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
@@ -146,10 +148,10 @@ def push_hkgov_to_db(path):
 def crawl_s3():
 	data_dict = {}
 	conn = S3Connection()
-	bucket = conn.get_bucket('sg14fbr')
-	jsons = [bucket.get_key('data/traffic/2014-07-13 06:58:42.942341traffic.json'),
-		bucket.get_key('data/twitter/2014-07-10 18:22:12.990921tweets.json'),
-		bucket.get_key('data/foursquare/2014-07-14 06:29:21.646841foursquare_trending.json')]
+	bucket = conn.get_bucket(BUCKET_NAME)
+	# jsons = [bucket.get_key('data/traffic/2014-07-13 06:58:42.942341traffic.json'),
+	# 	bucket.get_key('data/twitter/2014-07-10 18:22:12.990921tweets.json'),
+	# 	bucket.get_key('data/foursquare/2014-07-14 06:29:21.646841foursquare_trending.json')]
 	count = -1
 	for key in bucket.list(prefix='data/traffic'):
 		count += 1
@@ -168,10 +170,11 @@ def crawl_s3():
 
 
 def add_place_to_db( place, points_idx ):
-	place_type = place['tags']['place'] if 'place' in place['tags'] else place['tags']['shop'] if 'shop' in place['tags'] else 'undefined'
-	if place_type == 'undefined':
-		print "undefined --> %s" % jsom.dumps( place['tags'] )
-		return
+	# place_type = place['tags']['place'] if 'place' in place['tags'] else place['tags']['shop'] if 'shop' in place['tags'] else 'undefined'
+	# if place_type == 'undefined':
+	# 	print "undefined --> %s" % jsom.dumps( place['tags'] )
+	# 	return
+	place_type = 'undefined'
 	query_string = """ 
 		MERGE ( place:Place:OSM:""" + place_type.replace(' ', '_').capitalize() + """ {
 			lat: {p}.lat,
@@ -190,7 +193,7 @@ def add_place_to_db( place, points_idx ):
 
 
 def add_places():
-	with open('hk_places.json') as f:
+	with open( PLACE_FILE ) as f:
 		places = json.loads( f.read() )
 	points_idx = DB.get_or_create_index( neo4j.Node, 'points_hk', {
 			'provider':'spatial',
@@ -211,7 +214,7 @@ def get_name_index( places=None ):
 	name_set = set()
 	index = esm.Index()
 	if places is None:
-		with open('hk_places.json') as f:
+		with open(PLACE_FILE) as f:
 			places = [ place['name'] for place in json.loads( f.read() )]
 	for i, place in enumerate( places ):
 		name = place.encode('ascii', 'ignore').strip() #''.join([ c for c in place if ord(c) < 128 ]).strip()
@@ -271,8 +274,10 @@ def add_places_relationships():
 
 
 if __name__=='__main__':
-	#DB.clear()
-	#crawl_s3()
+	# DB.clear()
+	# crawl_s3()
+	# add_places()
+	add_places_relationships();
 	# Afterwards, add the traffic endpoint nodes to the spatial index
 	#add_nodes_to_index( 'TrafficPoint' )
 	

@@ -10,7 +10,7 @@ from flask import request
 
 app = Flask(__name__)
 
-GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL", "http://localhost:7474/db/data/")
+GRAPHENEDB_URL = os.environ.get("GRAPHENEDB_URL")
 DB = neo4j.GraphDatabaseService( GRAPHENEDB_URL )
 
 
